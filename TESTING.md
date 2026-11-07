@@ -82,7 +82,7 @@ A dirty workstation clone produces a warning, and the fingerprint decides.
 1. Treat a result as evidence only if `check` exits 0 or 1. On exit 2, ask for a fresh run after pull or push; never reason from a stale report.
 2. Quote the verdict line and the `commit:`, `fingerprint:` and `host:` lines when recording results, e.g. in `verification.md`.
 3. Gate on the per-test statuses (`failed:` / `error:` lines and the `suite …` lines), never on reading a log by eye.
-4. `KNOWN-FAIL(<id>)` means a suite failed for a tracked open finding listed in `KNOWN_OPEN` in `tools/test_report.py` (currently `noise_fold` → F18). It does not fail `overall`. **When that finding is fixed, remove its entry in the same change**, so that a regression shows up as a real `FAIL`.
+4. `KNOWN-FAIL(<id>)` means a suite failed for a tracked open finding listed in `KNOWN_OPEN` in `tools/test_report.py` (empty when clean). It does not fail `overall`. **When that finding is fixed, remove its entry in the same change**, so that a regression shows up as a real `FAIL`.
 5. Don't compare output MD5s across hosts. Floating-point rounding can differ between CPUs. Determinism is checked within one machine by `test_determinism`.
 
 ## Suites and pass criteria
@@ -92,7 +92,7 @@ A dirty workstation clone produces a warning, and the fingerprint decides.
 | `unit` | quick, full | `unittest` discovery over `tests/` (35 tests) | every test passes |
 | `crack_graph_audit` | full | `tools/crack_graph_audit.py`, tea bowl and vase × S ∈ {0.6, 1.0} × 200 seeds, noise off | phantom = 0, crossing = 0, clamp-line max = 0 in every row |
 | `sweep` | full | `tools/sweep_out_of_sample.py`, both presets × R ∈ {0.15, 0.3, 0.45, 0.65, 0.85} × both modes × seeds 500–507 (160 runs) | nonwatertight = 0 and errors = 0. Retries are reported, not gated. |
-| `noise_fold` | full | `tools/noise_fold_audit.py`, both presets × S ∈ {0.3, 0.6, 1.0}, crossings over seeds 300–499 with noise on | fold area = 0 and crossings = 0. Currently `KNOWN-FAIL(F18)`. |
+| `noise_fold` | full | `tools/noise_fold_audit.py`, both presets × S ∈ {0.3, 0.6, 1.0}, crossings over seeds 300–499 with noise on | fold area = 0 and crossings = 0. Passed in PATCH-01 (preset fold area 0.0%). |
 
 Seeds 300–499 are used only by `noise_fold`, whose numbers don't feed back into tuning. Seeds 300–399 and ≥ 600 remain reserved for reviewer hold-out checks of `crack_graph_audit` and the sweeps.
 

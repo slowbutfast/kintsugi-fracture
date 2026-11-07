@@ -52,7 +52,7 @@ FINGERPRINT_GLOBS = (
 
 # Suites that are allowed to fail because the failure is a tracked, open finding.
 # Remove an entry when its finding is fixed, so a regression becomes a real FAIL.
-KNOWN_OPEN = {"noise_fold": "F18"}
+KNOWN_OPEN: dict[str, str] = {}
 
 PROFILES = {
     "quick": ["unit"],

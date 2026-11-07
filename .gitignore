@@ -8,6 +8,7 @@ output/web/
 output/cli_demo/
 output/determinism_*/
 output/round3_det_*/
+output/patch*_det_*/
 
 # Local agent tooling
 .agent/

@@ -146,8 +146,12 @@ def compute_parameters(
 
     wall_z_min = float(wall_probe["wall_z_min"])
     wall_z_max = float(wall_probe["wall_z_max"])
+    # The lower side stays half a seam above the floor.  The upper side is
+    # allowed to overshoot the rim by a full seam so the cutter can pierce the
+    # lip; projection clamps the ray height just below the rim plane to avoid
+    # coplanar faces on the horizontal top surface.
     z_wall_lo = wall_z_min + 0.5 * W
-    z_wall_hi = wall_z_max - 0.5 * W
+    z_wall_hi = wall_z_max + W
     if z_wall_lo >= z_wall_hi:
         raise ValueError(
             "Input has no usable wall range: the two-hit wall is thinner than "
@@ -435,11 +439,27 @@ def validate_and_load_mesh(
 # ---------------------------------------------------------------------------
 # Parameter-space crack network
 # ---------------------------------------------------------------------------
+MAX_NOISE_GRADIENT = 0.70
+
+
 def _make_noise(rbar: float, base_amplitude: float, rng: np.random.Generator):
-    """Return a deterministic, theta-periodic dyadic sine field ``eta(u, z)``."""
+    """Return a deterministic, theta-periodic dyadic sine field ``eta(u, z)``.
+
+    The octave amplitudes are normalised so the triangle-inequality bound on
+    every spatial derivative is at most ``MAX_NOISE_GRADIENT``.  With
+    $a_k = A 2^{-k}$ and $f_k = 2^k$, each octave contributes $A f_k$ to the
+    derivative, so the bound is $4 A \\max(1/\\bar r, 0.13)$.  Keeping that below
+    1.0 preserves injectivity of the displacement and prevents fold-overs.
+    """
     period = 2.0 * math.pi * rbar
     phases_u = rng.uniform(0.0, 2.0 * math.pi, size=4)
     phases_z = rng.uniform(0.0, 2.0 * math.pi, size=4)
+
+    gradient_per_amplitude = 4.0 * max(1.0 / rbar, 0.13)
+    amplitude_base = float(base_amplitude)
+    gradient_bound = amplitude_base * gradient_per_amplitude
+    if gradient_bound > MAX_NOISE_GRADIENT:
+        amplitude_base *= MAX_NOISE_GRADIENT / gradient_bound
 
     def eta(u: np.ndarray | float, z: np.ndarray | float):
         u_arr = np.asarray(u, dtype=np.float64)
@@ -449,7 +469,7 @@ def _make_noise(rbar: float, base_amplitude: float, rng: np.random.Generator):
         dz = np.zeros_like(theta)
         for k in range(4):
             freq = float(2**k)
-            amplitude = base_amplitude * (2.0 ** (-k))
+            amplitude = amplitude_base * (2.0 ** (-k))
             phase = freq * theta + phases_u[k] + 0.11 * freq * z_arr
             du += amplitude * np.sin(phase)
             dz += amplitude * np.cos(
@@ -854,6 +874,7 @@ def project_crack_paths(
     rbar = float(params["rbar"])
     z_min = float(params["z_min"])
     z_max = float(params["z_max"])
+    wall_z_max = float(params["wall_z_max"])
     center = np.asarray(mesh.bounding_box.centroid, dtype=np.float64)
     cx, cy = float(center[0]), float(center[1])
     ray_length = 2.0 * float(np.max(mesh.extents)) + 10.0
@@ -875,7 +896,13 @@ def project_crack_paths(
                 band_points += 1
             theta = float(u) / rbar
             direction = np.array([math.cos(theta), math.sin(theta), 0.0])
-            start = np.array([cx, cy, float(z)], dtype=np.float64)
+            ray_z = float(z)
+            if ray_z > wall_z_max:
+                # Rim-bound points deliberately overshoot; cast just below the
+                # horizontal rim plane so the cutter pierces the lip without
+                # creating coplanar faces on the top surface.
+                ray_z = wall_z_max - 0.05
+            start = np.array([cx, cy, ray_z], dtype=np.float64)
             end = start + direction * ray_length
             hits = manifold.ray_cast(
                 tuple(start.tolist()), tuple(end.tolist())

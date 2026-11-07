@@ -939,10 +939,11 @@ class KintsugiTestCase(unittest.TestCase):
                 )
                 W = float(params["W"])
                 wall_lo = float(params["wall_z_min"]) + 0.5 * W
-                wall_hi = float(params["wall_z_max"]) - 0.5 * W
+                wall_hi = float(params["z_wall_hi"])
                 lines = [
                     wall_lo,
                     wall_hi,
+                    float(params["wall_z_max"]) - 0.5 * W,
                     float(params["z_min"]) + 0.5 * W,
                     float(params["z_min"]) - 0.5 * W,
                     float(params["z_max"]) + 0.5 * W,
@@ -1053,6 +1054,29 @@ class KintsugiTestCase(unittest.TestCase):
             self.assertIn("wall", str(context.exception).lower())
             written = [path for path in out.iterdir() if path.is_file()] if out.exists() else []
             self.assertEqual(written, [])
+
+
+    # ------------------------------------------------------------------
+    # PATCH-01 tests
+    # ------------------------------------------------------------------
+    def test_noise_field_gradient_bounded_and_no_crossings(self) -> None:
+        import kintsugi
+        from tools.noise_fold_audit import fold_stats
+
+        mesh, manifold = kintsugi.validate_and_load_mesh(self.bowl, 0.0)
+        params = kintsugi.compute_parameters(0.6, mesh, manifold=manifold)
+        fold_mean, fold_max, max_grad = fold_stats(params, seeds=10)
+        self.assertLessEqual(fold_mean, 1e-6)
+        self.assertLessEqual(fold_max, 1e-6)
+        self.assertLessEqual(max_grad, 0.70 + 1e-6)
+        for seed in range(10):
+            paths = kintsugi.generate_crack_paths(
+                params, np.random.default_rng(seed)
+            )
+            self.assertIsNone(
+                _first_crossing(paths, float(params["period"])),
+                f"noise-on paths cross at seed {seed}",
+            )
 
 
 if __name__ == "__main__":

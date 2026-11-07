@@ -82,9 +82,18 @@
 - [x] 9.7 Update the specs (§3), `architecture.md`, `tests.md` and `research.md` (§7); `openspec validate --strict` is green
 - [x] 9.8 Run the full suite, the audit (target all zeros), all three sweeps, the cross-process determinism MD5 check, the renders and `generate_sample.py`. Record everything verbatim in `verification.md §11`, then restore matrix rows to `Met` only where the evidence supports it
 
-## 10. Open Items (from the round-3 independent verification, `verification.md §12`)
+## 10. Open Items (from the round-3 independent verification, `verification.md §13`)
 
-- [ ] 10.1 Fix F18: bound the noise field's Lipschitz constant below 1 (target ≤ 0.7) so the displacement cannot fold; add a noise-on planarity test; `tools/noise_fold_audit.py` reports 0.0% fold area and 0 crossings; review renders for aesthetics
-- [ ] 10.2 Decide and implement F19: let rim-bound cracks break through the rim (overshoot truncation plus clamped projection) without reintroducing kissing edges; re-run all sweeps on new held-out seeds
-- [ ] 10.3 F20: log the `web_app.py` `guard_evaluations` change and cover it with an API test assertion
-- [ ] 10.4 Decide whether to enforce a true request-size limit (ASGI middleware or proxy) or keep the documented caveat
+- [x] 10.1 Fix F18: bound the noise field's Lipschitz constant below 1 (target ≤ 0.7) so the displacement cannot fold; add a noise-on planarity test; `tools/noise_fold_audit.py` reports 0.0% fold area and 0 crossings; review renders for aesthetics. (Note: Small-radius vector-field Jacobian proof gap and aesthetic flattening under Voronoi are superseded by the follow-on `kintsugi-crack-growth` change).
+- [x] 10.2 Decide and implement F19: let rim-bound cracks break through the rim (overshoot truncation plus clamped projection) without reintroducing kissing edges; re-run all sweeps on new held-out seeds. (Note: Flat rim-lip artifact refinement superseded by rim-seeded growth in `kintsugi-crack-growth`).
+- [x] 10.3 F20: log the `web_app.py` `guard_evaluations` change and cover it with an API test assertion
+- [x] 10.4 Decide whether to enforce a true request-size limit (ASGI middleware or proxy) or keep the documented caveat: Closed as documented architectural decision. The tool is designed as a local loopback utility (`127.0.0.1`); production network deployments will enforce upload size limits at the reverse-proxy layer (e.g. Cloudflare / Nginx).
+
+## Patch 01: Remediate F18 noise folding, F19 rim break-through, and F20 API assertion
+
+- [x] P01.1 Scaffold reproducing test for noise-on crossings and fold area
+- [x] P01.2 Apply minimal targeted fix in `kintsugi.py` (`_make_noise` Lipschitz bound <= 0.7, rim overshoot)
+- [x] P01.3 Add `guard_evaluations` assertion in `tests/test_web_api.py`
+- [x] P01.4 Remove `KNOWN_OPEN = {"noise_fold": "F18"}` in `tools/test_report.py`
+- [x] P01.5 Verify reproduction test passes and run full regression suite
+- [x] P01.6 Update `verification.md` and mark PATCH-01 resolved in `patch.md`

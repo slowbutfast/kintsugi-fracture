@@ -260,7 +260,7 @@ download.
 | **Supported input envelope** — closed manifold, mm, +Z, extents 20–300 mm, radial star-shaped band; reject otherwise | `validate_and_load_mesh`, `_extent_error`, `_radial_probe`; `test_input_envelope_rejection`, `test_wealthy_case`, `test_high_severity_bowl_not_rejected`; 144-run sweep: 0 false rejections | Met |
 | **Metric R validation and clamping** — finite float, `S = 1 - clip(R,0,1)`, exact parameter table | `compute_severity`, `compute_parameters`; `test_input_validation`, `test_parameter_table` (`R=0.4 → N=6, W=1.64, H=0.68 H_mesh`) | Met |
 | **Watertight input validation** — lossless clean-up, `Mesh64`, status/volume check before any R branch | `validate_and_load_mesh`, `_clean_mesh`; both wealthy and non-wealthy rejection tests | Met |
-| **Parameter-space crack generation** — periodic Voronoi, tiling, band clip/jitter, dyadic periodic noise, radial farthest-hit projection with wall thickness, miss splitting | `generate_crack_paths`, `_make_noise`, `_clip_segment_to_rect`, `project_crack_paths`, `_probe_wall_range`; `test_crack_paths_lie_on_periodic_voronoi`, `test_unbounded_rays_obey_voronoi_definition`, `test_junctions_connected`, `test_band_edge_terminals_are_ragged`, `test_no_points_on_wall_limit_lines`, `test_high_severity_bowl_not_rejected`, `test_wall_range_clamp_keeps_gold_out_of_floor`; audit all zeros and all three sweeps | Met |
+| **Parameter-space crack generation** — periodic Voronoi, tiling, band clip/jitter, dyadic periodic noise, radial farthest-hit projection with wall thickness, miss splitting | `generate_crack_paths`, `_make_noise`, `_clip_segment_to_rect`, `project_crack_paths`, `_probe_wall_range`; `test_crack_paths_lie_on_periodic_voronoi`, `test_unbounded_rays_obey_voronoi_definition`, `test_junctions_connected`, `test_band_edge_terminals_are_ragged`, `test_no_points_on_wall_limit_lines`, `test_high_severity_bowl_not_rejected`, `test_wall_range_clamp_keeps_gold_out_of_floor`; zero-noise audit all zeros; macOS noise-on audit finds F18 folds/crossings | **Partial — F18 known failure; see §§13–14** |
 | **Watertight cutter construction** — inset-sphere vein unions, through-wall ribbon slab hulls, degenerate frame handling, `batch_boolean(Add)` | `build_vein_cutter`, `_build_vein_cutter`, `build_ribbon_cutter`; `test_vein_cutter_no_kissing`, `test_vein_no_retries_out_of_sample_cases`, `test_vein_depth`, `test_ribbon_no_retries_out_of_sample_cases`, `test_ribbon_through_wall`, `test_printable_channel_thickness`; both sweeps 0 retries | Met |
 | **Exact complementary partitioning** — `M−C` and `M∩C`, volume tripwire, determinism | `generate_kintsugi_mesh`, `swap_debris`; `test_volume_smoke`, `test_determinism` | Met |
 | **Sub-nozzle debris reassignment** — move <1 mm³ components into the other material only across a shared face, never delete | `swap_debris`, `_shares_face_region`; `test_debris_swap`, `test_debris_swap_no_new_bad_edges`, `test_volume_smoke` | Met |
@@ -2468,7 +2468,7 @@ be independently inspected here; this entry records the supplied report,
 not a locally reproduced run. The report does not include Bambu Studio or
 PrusaSlicer import results, so task 6.3 remains open.
 
-## 12. Independent verification of round 3 (2026-11-07)
+## 13. Independent verification of round 3 (2026-11-07)
 
 Round 3 (F14–F17) was re-checked by the reviewer on **seeds the implementing
 agent never saw** (300–499 for the crack graph, 310–317 for the sweep, with
@@ -2527,9 +2527,309 @@ What this adds: the engine, the guard and `test_determinism` (two runs in one
 process, byte-identical) behave the same on a second OS and CPU. What it does not
 cover: cross-*machine* byte identity. Output MD5s are tied to the machine and are
 not compared between hosts, because floating-point rounding can differ between
-CPUs. The audits and sweeps were run only on the VPS (§11, §12 above).
+CPUs. At the time of that cross-platform comparison, the audits and sweeps
+were available only from the VPS runs recorded in §§11–13. A later macOS
+full-profile audit and sweep are recorded in §14.
+
+---
+
+## 14. Full-profile macOS report (2026-11-07)
+
+The developer workstation supplied a full-profile report for commit
+`7424267c2159` (`main`, clean working tree), fingerprint
+`6bb47600aecc2194`, created at `2026-11-07T04:59:43Z`. The source report is
+identified as
+`reports/test-report-7424267c2159-Darwin-arm64.json` in that checkout; it was
+not available in this workspace, so the block below is transcribed from the
+user-supplied report.
+
+| Host | Reported value |
+|---|---|
+| OS / CPU | Darwin 27.2.0 arm64 / Apple M6 |
+| Python | 3.11.18 |
+| Packages | NumPy 2.4.6, SciPy 1.17.1, trimesh 5.2.0, manifold3d 3.5.4, FastAPI 0.162.0, httpx 0.28.1, rtree 1.4.1 |
+
+| Suite | Result |
+|---|---|
+| Unit tests | PASS, 35/35, 57.7 s |
+| Crack-graph audit | PASS, 4 rows, 0 phantom, 0 crossing, 0.0% maximum clamp-line fraction, 6.0 s |
+| Out-of-sample sweep | PASS, 160/160 clean, 0 non-watertight, 0 errors, 0 retries, 0.32 s median, 84.4 s total |
+| Noise-fold audit | **KNOWN-FAIL (F18)**, 26.2% maximum fold area, maximum gradient 3.41, crossing seeds 703/1200, 4.2 s |
+
+The report's `overall: PASS` reflects its profile policy, which classifies
+F18 as a known failure. F18 therefore remains a correctness issue and task
+10.1 remains incomplete; the noise-on graph does not meet the intended
+no-fold/no-crossing criterion. The other supplied checks add independent
+macOS evidence for the unit suite, zero-noise graph audit, and held-out mesh
+sweep. Task 6.3 (manual slicer import) is not covered by this report.
+
+The previously reported cross-platform suite establishes that the tested
+tree at commit `fffe954eb047` matched the earlier verified VPS tree. This
+new report is for commit `7424267c2159`; its contents are recorded as
+reported evidence, but the commit and JSON report were not fetched or
+independently compared from this workspace.
+
+### First workstation test report, `--profile full` (2026-11-07)
+
+Produced with `tools/test_report.py run --profile full` on the developer
+workstation and checked on the VPS with `tools/test_report.py check`:
+
+```text
+CHECK: APPLIES to the current VPS tree (fingerprint 6bb47600aecc2194); overall PASS
+```
+
+- commit `7424267c2159 clean main` (= `origin/main`)
+- fingerprint `6bb47600aecc2194`
+- host `Darwin-27.2.0-arm64 | Apple M6 | python 3.11.18`
+
+| Suite | Result | Workstation time | VPS time, same tool |
+|---|---|---|---|
+| unit | PASS 35/35 | 57.7 s | 176.6 s (`test_report.py run`) |
+| crack_graph_audit (both presets × S ∈ {0.6, 1.0} × 200 seeds) | PASS: phantom 0, crossing 0, clamp-line max 0.0% | 6.0 s | 16 s |
+| sweep (160 runs, seeds 500–507) | PASS: 160/160 clean, 0 nonwatertight, 0 errors, 0 retries, median 0.32 s | 84.4 s | — |
+| noise_fold (both presets × S ∈ {0.3, 0.6, 1.0}, seeds 300–499) | KNOWN-FAIL(F18): fold max 26.2%, max \|∇η\| 3.41, 703/1200 crossing seeds | 4.2 s | 21 s |
+
+Cross-host agreement: the noise_fold figures match the VPS run exactly
+(per-row crossings 27 + 108 + 192 + 55 + 136 + 185 = 703; fold max 26.2%; max
+gradient 3.41), as do the zero rows of the crack-graph audit. This round's
+sweep was run only on the workstation; the earlier §11 runs of the same seed-500
+sweep on the VPS were also 160/160 clean.
 
 ### Still open from earlier rounds
 
 - **Task 6.3:** manual slicer import (Bambu Studio and PrusaSlicer). Confirm the 3MF loads as one object with two parts.
 - **Upload size cap:** Starlette spools the whole request body before `_save_upload` enforces 50 MB, so this is not a true request-size limit. Documented in `architecture.md`, not fixed. A real limit belongs in the reverse proxy or an ASGI middleware that checks `Content-Length` and stream length.
+
+---
+
+## 15. PATCH-01 verification (2026-11-07)
+
+PATCH-01 addressed the three open review findings plus the test-report
+exemption. Only `kintsugi.py`, `tests/test_kintsugi.py`,
+`tests/test_web_api.py` and `tools/test_report.py` changed; the CSG boolean
+pipeline, cutter builders, presets and GUI were untouched.
+
+### F18 — noise folding
+
+Baseline reproduction (`tea_bowl`, S=0.6, seeds 300–305):
+
+```text
+tea_bowl S=0.6  fold area mean 21.8% max 26.1%  max|grad eta| 3.41  crossings (noise on) 0/5
+```
+
+`_make_noise` now normalises the octave amplitudes so the analytic spatial
+gradient bound is at most `0.70`; the displacement map is injective and cannot
+fold. The new `test_noise_field_gradient_bounded_and_no_crossings` asserts
+`fold_area == 0`, `max|grad eta| <= 0.70`, and zero noise-on crossings.
+
+Final noise audit:
+
+```text
+tea_bowl S=0.3  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+ tea_bowl S=0.6  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+ tea_bowl S=1.0  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+     vase S=0.3  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+     vase S=0.6  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+     vase S=1.0  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+```
+
+### F19 — rim break-through
+
+`z_wall_hi` is now `wall_z_max + W`; points above `wall_z_max` are projected by
+a ray at `wall_z_max - 0.05`, so the cutter pierces the rim without coplanar
+top-face artifacts. The lower floor limit is unchanged. The existing
+`test_no_points_on_wall_limit_lines` upper bound now uses the new `z_wall_hi`
+(rim overshoot is intentional); its lower-limit and non-terminal-line
+assertions are unchanged. Gold now reaches the
+rim plane (`z=60`) from both modes (28 vertices above 59.9 in R=0 ribbon seed 1;
+120 in R=0 vein seed 2), and all three PATCH-01 renders remain watertight with
+0 bad edges.
+
+```text
+tea_bowl_R0.0_ribbon_s1 | watertight | bad edges=0 cracks=17
+tea_bowl_R0.0_vein_s2 | watertight | bad edges=0 cracks=16
+tea_bowl_R0.2_ribbon_s0 | watertight | bad edges=0 cracks=14
+```
+
+### F20 — `guard_evaluations` API coverage
+
+`test_api_fracture_success` now asserts the field is present and `>= 1`;
+`test_api_fracture_wealthy` asserts it is present and `0` (no cutter run).
+Full unit suite: **36/36 pass**.
+
+```text
+/home/node/global-sandbox/projects/wax-robot/.venv/lib/python3.11/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+test_3mf_structure (test_kintsugi.KintsugiTestCase.test_3mf_structure) ... ok
+test_band_edge_terminals_are_ragged (test_kintsugi.KintsugiTestCase.test_band_edge_terminals_are_ragged) ... ok
+test_crack_paths_lie_on_periodic_voronoi (test_kintsugi.KintsugiTestCase.test_crack_paths_lie_on_periodic_voronoi) ... ok
+test_debris_swap (test_kintsugi.KintsugiTestCase.test_debris_swap) ... ok
+test_debris_swap_no_new_bad_edges (test_kintsugi.KintsugiTestCase.test_debris_swap_no_new_bad_edges) ... ok
+test_determinism (test_kintsugi.KintsugiTestCase.test_determinism) ... ok
+test_export_repair_runs_once_per_guard_evaluation (test_kintsugi.KintsugiTestCase.test_export_repair_runs_once_per_guard_evaluation) ... ok
+test_high_severity_bowl_not_rejected (test_kintsugi.KintsugiTestCase.test_high_severity_bowl_not_rejected) ... ok
+test_input_envelope_rejection (test_kintsugi.KintsugiTestCase.test_input_envelope_rejection) ... ok
+test_input_validation (test_kintsugi.KintsugiTestCase.test_input_validation) ... ok
+test_junctions_connected (test_kintsugi.KintsugiTestCase.test_junctions_connected) ... ok
+test_no_points_on_wall_limit_lines (test_kintsugi.KintsugiTestCase.test_no_points_on_wall_limit_lines) ... ok
+test_noise_field_gradient_bounded_and_no_crossings (test_kintsugi.KintsugiTestCase.test_noise_field_gradient_bounded_and_no_crossings) ... ok
+test_parameter_table (test_kintsugi.KintsugiTestCase.test_parameter_table) ... ok
+test_printable_channel_thickness (test_kintsugi.KintsugiTestCase.test_printable_channel_thickness) ... ok
+test_ray_tiebreak_direction (test_kintsugi.KintsugiTestCase.test_ray_tiebreak_direction) ... ok
+test_ribbon_no_retries_out_of_sample_cases (test_kintsugi.KintsugiTestCase.test_ribbon_no_retries_out_of_sample_cases) ... ok
+test_ribbon_through_wall (test_kintsugi.KintsugiTestCase.test_ribbon_through_wall) ... ok
+test_roundtrip_guard_raises_and_writes_nothing (test_kintsugi.KintsugiTestCase.test_roundtrip_guard_raises_and_writes_nothing) ... ok
+test_seed_sweep_watertight (test_kintsugi.KintsugiTestCase.test_seed_sweep_watertight) ... ok
+test_stl_disk_roundtrip (test_kintsugi.KintsugiTestCase.test_stl_disk_roundtrip) ... ok
+test_unbounded_rays_obey_voronoi_definition (test_kintsugi.KintsugiTestCase.test_unbounded_rays_obey_voronoi_definition) ... ok
+test_vein_cutter_no_kissing (test_kintsugi.KintsugiTestCase.test_vein_cutter_no_kissing) ... ok
+test_vein_depth (test_kintsugi.KintsugiTestCase.test_vein_depth) ... ok
+test_vein_no_retries_out_of_sample_cases (test_kintsugi.KintsugiTestCase.test_vein_no_retries_out_of_sample_cases) ... ok
+test_vessel_without_wall_range_rejected (test_kintsugi.KintsugiTestCase.test_vessel_without_wall_range_rejected) ... ok
+test_volume_smoke (test_kintsugi.KintsugiTestCase.test_volume_smoke) ... ok
+test_wall_range_clamp_keeps_gold_out_of_floor (test_kintsugi.KintsugiTestCase.test_wall_range_clamp_keeps_gold_out_of_floor) ... ok
+test_wealthy_case (test_kintsugi.KintsugiTestCase.test_wealthy_case) ... ok
+test_api_fracture_success (test_web_api.WebApiTestCase.test_api_fracture_success) ... ok
+test_api_fracture_wealthy (test_web_api.WebApiTestCase.test_api_fracture_wealthy) ... ok
+test_api_presets (test_web_api.WebApiTestCase.test_api_presets) ... ok
+test_api_upload_too_large (test_web_api.WebApiTestCase.test_api_upload_too_large) ... ok
+test_api_validate_ok (test_web_api.WebApiTestCase.test_api_validate_ok) ... ok
+test_api_validate_open_mesh (test_web_api.WebApiTestCase.test_api_validate_open_mesh) ... ok
+test_job_retention (test_web_api.WebApiTestCase.test_job_retention) ... ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 129.741s
+
+OK
+```
+
+### Full-profile report
+
+`KNOWN_OPEN` is now empty. `tools/test_report.py run --profile full` reports:
+
+```text
+--- running unit ---
+/home/node/global-sandbox/projects/wax-robot/.venv/lib/python3.11/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+test_3mf_structure (test_kintsugi.KintsugiTestCase.test_3mf_structure) ... ok
+test_band_edge_terminals_are_ragged (test_kintsugi.KintsugiTestCase.test_band_edge_terminals_are_ragged) ... ok
+test_crack_paths_lie_on_periodic_voronoi (test_kintsugi.KintsugiTestCase.test_crack_paths_lie_on_periodic_voronoi) ... ok
+test_debris_swap (test_kintsugi.KintsugiTestCase.test_debris_swap) ... ok
+test_debris_swap_no_new_bad_edges (test_kintsugi.KintsugiTestCase.test_debris_swap_no_new_bad_edges) ... ok
+test_determinism (test_kintsugi.KintsugiTestCase.test_determinism) ... ok
+test_export_repair_runs_once_per_guard_evaluation (test_kintsugi.KintsugiTestCase.test_export_repair_runs_once_per_guard_evaluation) ... ok
+test_high_severity_bowl_not_rejected (test_kintsugi.KintsugiTestCase.test_high_severity_bowl_not_rejected) ... ok
+test_input_envelope_rejection (test_kintsugi.KintsugiTestCase.test_input_envelope_rejection) ... ok
+test_input_validation (test_kintsugi.KintsugiTestCase.test_input_validation) ... ok
+test_junctions_connected (test_kintsugi.KintsugiTestCase.test_junctions_connected) ... ok
+test_no_points_on_wall_limit_lines (test_kintsugi.KintsugiTestCase.test_no_points_on_wall_limit_lines) ... ok
+test_noise_field_gradient_bounded_and_no_crossings (test_kintsugi.KintsugiTestCase.test_noise_field_gradient_bounded_and_no_crossings) ... ok
+test_parameter_table (test_kintsugi.KintsugiTestCase.test_parameter_table) ... ok
+test_printable_channel_thickness (test_kintsugi.KintsugiTestCase.test_printable_channel_thickness) ... ok
+test_ray_tiebreak_direction (test_kintsugi.KintsugiTestCase.test_ray_tiebreak_direction) ... ok
+test_ribbon_no_retries_out_of_sample_cases (test_kintsugi.KintsugiTestCase.test_ribbon_no_retries_out_of_sample_cases) ... ok
+test_ribbon_through_wall (test_kintsugi.KintsugiTestCase.test_ribbon_through_wall) ... ok
+test_roundtrip_guard_raises_and_writes_nothing (test_kintsugi.KintsugiTestCase.test_roundtrip_guard_raises_and_writes_nothing) ... ok
+test_seed_sweep_watertight (test_kintsugi.KintsugiTestCase.test_seed_sweep_watertight) ... ok
+test_stl_disk_roundtrip (test_kintsugi.KintsugiTestCase.test_stl_disk_roundtrip) ... ok
+test_unbounded_rays_obey_voronoi_definition (test_kintsugi.KintsugiTestCase.test_unbounded_rays_obey_voronoi_definition) ... ok
+test_vein_cutter_no_kissing (test_kintsugi.KintsugiTestCase.test_vein_cutter_no_kissing) ... ok
+test_vein_depth (test_kintsugi.KintsugiTestCase.test_vein_depth) ... ok
+test_vein_no_retries_out_of_sample_cases (test_kintsugi.KintsugiTestCase.test_vein_no_retries_out_of_sample_cases) ... ok
+test_vessel_without_wall_range_rejected (test_kintsugi.KintsugiTestCase.test_vessel_without_wall_range_rejected) ... ok
+test_volume_smoke (test_kintsugi.KintsugiTestCase.test_volume_smoke) ... ok
+test_wall_range_clamp_keeps_gold_out_of_floor (test_kintsugi.KintsugiTestCase.test_wall_range_clamp_keeps_gold_out_of_floor) ... ok
+test_wealthy_case (test_kintsugi.KintsugiTestCase.test_wealthy_case) ... ok
+test_api_fracture_success (test_web_api.WebApiTestCase.test_api_fracture_success) ... ok
+test_api_fracture_wealthy (test_web_api.WebApiTestCase.test_api_fracture_wealthy) ... ok
+test_api_presets (test_web_api.WebApiTestCase.test_api_presets) ... ok
+test_api_upload_too_large (test_web_api.WebApiTestCase.test_api_upload_too_large) ... ok
+test_api_validate_ok (test_web_api.WebApiTestCase.test_api_validate_ok) ... ok
+test_api_validate_open_mesh (test_web_api.WebApiTestCase.test_api_validate_open_mesh) ... ok
+test_job_retention (test_web_api.WebApiTestCase.test_job_retention) ... ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 129.769s
+
+OK
+--- running crack_graph_audit ---
+ tea_bowl S=0.6  phantom 0/200  crossing 0/200  clamp-line pts mean 0.0% max 0.0%
+ tea_bowl S=1.0  phantom 0/200  crossing 0/200  clamp-line pts mean 0.0% max 0.0%
+     vase S=0.6  phantom 0/200  crossing 0/200  clamp-line pts mean 0.0% max 0.0%
+     vase S=1.0  phantom 0/200  crossing 0/200  clamp-line pts mean 0.0% max 0.0%
+--- running sweep ---
+{
+  "total": 160,
+  "counts": {
+    "ok": 160
+  },
+  "clean": 160,
+  "nonwatertight": 0,
+  "errors": 0,
+  "cutter_attempts": {
+    "1": 160
+  },
+  "cutter_variants": {
+    "1": 160
+  },
+  "ribbon_ceramic_components": {
+    "2": 4,
+    "1": 69,
+    "5": 1,
+    "3": 5,
+    "4": 1
+  },
+  "run_time_median_s": 0.7534101982600987,
+  "run_time_max_s": 2.8008532132953405
+}
+Wrote /tmp/tmpwwm3g2tb/sweep.json
+--- running noise_fold ---
+ tea_bowl S=0.3  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+ tea_bowl S=0.6  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+ tea_bowl S=1.0  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+     vase S=0.3  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+     vase S=0.6  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+     vase S=1.0  fold area mean 0.0% max 0.0%  max|grad eta| 0.70  crossings (noise on) 0/200
+=== KINTSUGI TEST REPORT v1 ===
+overall: PASS
+created_utc: 2026-11-07T05:24:26Z
+profile: full
+commit: 7424267c2159 DIRTY main
+fingerprint: 86d7b6d7f8109bf5
+host: Linux-5.15.0-1081-oracle-aarch64 | Neoverse-N1 | python 3.11.2
+packages: numpy=2.4.6 scipy=1.17.1 trimesh=5.2.0 manifold3d=3.5.4 fastapi=0.162.0 httpx=0.28.1 rtree=1.4.1
+suite unit: PASS ran=36 passed=36 failed=0 errors=0 skipped=0 time=130.6s
+suite crack_graph_audit: PASS rows=4 phantom=0 crossing=0 clamp_max=0.0% time=15.8s
+suite sweep: PASS total=160 clean=160 nonwatertight=0 errors=0 retries=0 median=0.75s time=182.3s
+suite noise_fold: PASS fold_max=0.0% max_grad=0.70 crossing_seeds=0/1200 time=23.0s
+report: reports/test-report-7424267c2159-Linux-aarch64.json
+=== END KINTSUGI TEST REPORT ===
+```
+
+### Determinism and regenerated samples
+
+Cross-process determinism (vase, R=0.3, two CLI processes):
+
+```text
+bd97a66618fa7fbf4d3bc47aca3d4595  output/patch01_det_a/ceramic_body.stl
+5274dec311b4fb7d3418967c0a85690c  output/patch01_det_a/gold_seams.stl
+db05914da960225be812d6a65f6ee955  output/patch01_det_a/kintsugi_assembly.3mf
+bd97a66618fa7fbf4d3bc47aca3d4595  output/patch01_det_b/ceramic_body.stl
+5274dec311b4fb7d3418967c0a85690c  output/patch01_det_b/gold_seams.stl
+db05914da960225be812d6a65f6ee955  output/patch01_det_b/kintsugi_assembly.3mf
+```
+
+Samples were regenerated; new MD5s:
+
+```text
+a81b862f463a0248bf6358d309285017  output/bowl_R0.2_ribbon/ceramic_body.stl
+3c662a103dafc26e52b726f291ff0e8b  output/bowl_R0.2_ribbon/gold_seams.stl
+c875f28fa6de9b5dfa573e37e1bc03a5  output/bowl_R0.2_ribbon.3mf
+4aed742ea529707c26e7e343cf1ca2e9  output/bowl_R0.2_vein/ceramic_body.stl
+8a5d98186565443bbfeb03565bad5b86  output/bowl_R0.2_vein/gold_seams.stl
+9fbc6d16eb600fc438875c8cbf92f730  output/bowl_R0.2_vein.3mf
+```
+
+PATCH-01 supersedes the `KNOWN-FAIL(F18)` row in §14. `presets/*.stl` remain
+unchanged at the original MD5s. Task 6.3 (manual slicer import) remains open;
+10.4 (true request-size limit) remains a documented caveat.

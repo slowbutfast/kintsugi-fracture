@@ -63,6 +63,8 @@ class WebApiTestCase(unittest.TestCase):
         self.assertGreater(body["num_cracks"], 0)
         self.assertGreater(body["volumes"]["ceramic"], 0.0)
         self.assertGreater(body["volumes"]["gold"], 0.0)
+        self.assertIn("guard_evaluations", body)
+        self.assertGreaterEqual(body["guard_evaluations"], 1)
 
         downloads = body["downloads"]
         self.assertIsNotNone(downloads["ceramic_stl"])
@@ -83,6 +85,8 @@ class WebApiTestCase(unittest.TestCase):
         body = response.json()
 
         self.assertEqual(body["num_cracks"], 0)
+        self.assertIn("guard_evaluations", body)
+        self.assertEqual(body["guard_evaluations"], 0)
         self.assertIsNone(body["downloads"]["gold_stl"])
         self.assertIsNotNone(body["downloads"]["ceramic_stl"])
 

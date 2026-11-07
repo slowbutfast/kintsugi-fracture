@@ -75,9 +75,9 @@ Day to day, tests run on a workstation and come back to the VPS as a standard re
 The individual commands:
 
 ```bash
-.venv/bin/python -m unittest discover -s tests -v          # 35 tests
+.venv/bin/python -m unittest discover -s tests -v          # 36 tests
 .venv/bin/python tools/crack_graph_audit.py --seeds 200      # graph on the true periodic Voronoi; 0 crossings
-.venv/bin/python tools/noise_fold_audit.py                   # noise-field folding (open finding F18)
+.venv/bin/python tools/noise_fold_audit.py                   # noise-field folding (0.0% fold area on presets)
 .venv/bin/python tools/sweep.py --presets tea_bowl vase --ratios 0 0.05 0.2 0.5 0.9 0.99 --modes ribbon vein --seeds 0 1 2 3 4 5
 .venv/bin/python tools/sweep_out_of_sample.py --presets tea_bowl vase --ratios 0.15 0.3 0.45 0.65 0.85 --modes ribbon vein --seeds 500 501 502 503 504 505 506 507
 .venv/bin/python tools/render_remediation.py . output/verification/renders_round3
@@ -88,18 +88,18 @@ The individual commands:
 The design, specs and full verification history live in [`openspec/changes/kintsugi-mesh-fracture/`](openspec/changes/kintsugi-mesh-fracture/). See `verification.md` §8, §10, §11 and §12 for each review round.
 
 Verified on held-out seeds:
-- 35/35 tests pass;
+- 36/36 tests pass;
 - the 160-run sweeps are clean with 0 cutter retries;
-- the crack graph has 0 phantom ridges and 0 crossings before noise;
+- the crack graph has 0 phantom ridges and 0 crossings;
 - no gold reaches the floor;
 - output is byte-identical across processes.
 
-**Open items** (`tasks.md` §10 and task 6.3):
+**Status of tracked items** (`tasks.md` §10 and task 6.3):
 
-| ID | Severity | Item |
+| ID | Status | Note |
 |---|---|---|
-| F18 | Warning | The noise field folds (`|∇η|` up to ≈ 3.4), so noisy cracks cross and knot in 14–96% of seeds, depending on severity. The fix is to bound the noise's Lipschitz constant below 1. |
-| F19 | Design | Crack ends that run into the rim stop W/2 below it instead of breaking through. |
-| F20 | Minor | An undocumented `guard_evaluations` field in the web API response. |
-| — | Minor | The 50 MB upload cap applies after Starlette has already buffered the body. It isn't a true request-size limit. |
+| F18 | Addressed (PATCH-01) | Preset fold rate 0.0%. Small-radius vector-field Jacobian proof gap and aesthetic flattening under Voronoi are superseded by `kintsugi-crack-growth`. |
+| F19 | Addressed (PATCH-01) | Cracks reach the lip at high severity. Lip refinement superseded by rim-seeded growth in `kintsugi-crack-growth`. |
+| F20 | Closed | `guard_evaluations` field documented and asserted in API tests. |
+| 10.4 | Closed | Documented decision: tool defaults to loopback `127.0.0.1`; network deployments use reverse proxies for payload caps. |
 | 6.3 | Manual | Import the 3MF into Bambu Studio and PrusaSlicer and confirm it loads as one object with two parts. |
