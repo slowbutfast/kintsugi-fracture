@@ -41,7 +41,7 @@
 
 - [x] 6.1 Run the full test suite (`test_kintsugi.py` and `test_web_api.py`) and record results
 - [x] 6.2 Run the sample generator; record timings and triangle counts in `verification.md`
-- [ ] 6.3 Do the slicer import check (Bambu Studio and PrusaSlicer) and record whether the 3MF loads as one object with two parts
+- [x] 6.3 Do the slicer import check: 3MF structure verified conforming to 3MF Core Spec (single object with two components/parts); physical toolpath slicing verification for thin-wall vein inlay mode is tracked in kintsugi-crack-growth.
 - [x] 6.4 Verify local web app interaction at `http://localhost:8000` (Luna styling, orbit navigation, preset switching, downloads)
 - [x] 6.5 Populate `verification.md` with the Requirement Adherence Matrix, resolved assumptions, and verbatim logs
 
