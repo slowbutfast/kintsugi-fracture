@@ -403,10 +403,17 @@ async function fracture() {
     ]);
 
     const volumes = body.volumes;
-    const label =
-      body.num_cracks === 0
-        ? "Pristine / Wealthy (0 cracks)"
-        : `${body.num_cracks} cracks · gold ${volumes.gold.toFixed(1)} mm³`;
+    const seamsOmitted = Boolean(body.seams_omitted);
+    const currentRatio = Number(ui.ratio.value);
+    let label;
+    if (seamsOmitted && currentRatio < 1.0) {
+      const reason = body.seams_omitted_reason || "wall thickness < 1.05 mm";
+      label = `Seams Omitted (${reason})`;
+    } else if (body.num_cracks === 0) {
+      label = "Pristine / Wealthy (0 cracks)";
+    } else {
+      label = `${body.num_cracks} cracks · gold ${volumes.gold.toFixed(1)} mm³`;
+    }
     setStatus(label);
     updateMeshStatus(
       `Ceramic ${volumes.ceramic.toFixed(1)} mm³ · Gold ${volumes.gold.toFixed(1)} mm³`

@@ -203,10 +203,17 @@ def api_fracture(
         "three_mf": f"/outputs/{job_id}/kintsugi_assembly.3mf",
     }
 
+    seams_omitted = bool(result.get("seams_omitted", False))
+    seams_omitted_reason = (
+        "wall thickness < 1.05 mm" if seams_omitted else None
+    )
+
     return JSONResponse(
         {
             "job_id": job_id,
             "num_cracks": result["num_cracks"],
+            "seams_omitted": seams_omitted,
+            "seams_omitted_reason": seams_omitted_reason,
             "cutter_attempts": result.get("cutter_attempts", 0),
             "cutter_variants": result.get("cutter_variants", 0),
             "guard_evaluations": result.get("guard_evaluations", 0),

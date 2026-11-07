@@ -61,6 +61,8 @@ class WebApiTestCase(unittest.TestCase):
         body = response.json()
 
         self.assertGreater(body["num_cracks"], 0)
+        self.assertFalse(body["seams_omitted"])
+        self.assertIsNone(body["seams_omitted_reason"])
         self.assertGreater(body["volumes"]["ceramic"], 0.0)
         self.assertGreater(body["volumes"]["gold"], 0.0)
         self.assertIn("guard_evaluations", body)
@@ -86,6 +88,26 @@ class WebApiTestCase(unittest.TestCase):
         self.assertEqual(body["parameters"]["mode"], "vein")
         self.assertEqual(body["parameters"]["generator"], "growth")
 
+    def test_api_fracture_thin_wall_seams_omitted(self) -> None:
+        response = self.client.post(
+            "/api/fracture",
+            data={
+                "preset": "thin_cylinder",
+                "R": "0.62",
+                "mode": "vein",
+                "seed": "620",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertTrue(body["seams_omitted"])
+        self.assertEqual(
+            body["seams_omitted_reason"], "wall thickness < 1.05 mm"
+        )
+        self.assertEqual(body["num_cracks"], 0)
+        self.assertIsNone(body["downloads"]["gold_stl"])
+        self.assertIsNotNone(body["downloads"]["ceramic_stl"])
+
     def test_api_fracture_wealthy(self) -> None:
         response = self.client.post(
             "/api/fracture",
@@ -95,6 +117,8 @@ class WebApiTestCase(unittest.TestCase):
         body = response.json()
 
         self.assertEqual(body["num_cracks"], 0)
+        self.assertFalse(body["seams_omitted"])
+        self.assertIsNone(body["seams_omitted_reason"])
         self.assertIn("guard_evaluations", body)
         self.assertEqual(body["guard_evaluations"], 0)
         self.assertIsNone(body["downloads"]["gold_stl"])

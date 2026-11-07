@@ -16,7 +16,7 @@ flowchart TD
     B --> C["KintsugiParameters<br/>(N, W, H, Severity S)"]
     
     C --> D{"--generator"}
-    D -->|"growth (default)"| E["generate_crack_growth_paths<br/>- Rim Seeds (Poisson spacing)<br/>- Heading within ±60° of down<br/>- Acute branching (30°-45°)<br/>- First-hit snapping & subdivision<br/>- Junction exemption zone<br/>- θ = 0..2π seam wrap"]
+    D -->|"growth (default)"| E["generate_crack_growth_paths<br/>- Rim Seeds (Poisson spacing)<br/>- Heading within ±85° of down<br/>- Acute 30°-45° whiskers + lateral branches up to 85°<br/>- 2-3 branches per trunk<br/>- Forward-projected first-hit T-junction snapping<br/>- Junction exemption zone<br/>- θ = 0..2π seam wrap"]
     D -->|"voronoi (CLI legacy)"| F["generate_crack_voronoi_paths<br/>- Periodic Voronoi<br/>- Sine noise perturbation"]
     
     E & F --> G["List of 2D Polylines [ (u, z) ]"]
@@ -36,8 +36,8 @@ flowchart TD
 
 **Goals:**
 - **Zero Crossings by Construction**: Eliminating F18 entirely without relying on global 2D displacement fields or Lipschitz bounds.
-- **Organic Lightning Morphology**: Natural dendritic tree branching, acute angles ($30^\circ\text{–}45^\circ$), and authentic T-junctions.
-- **First-Hit Snapping & Shared Vertex Subdivision**: When a candidate segment collides with an existing segment, it snaps to the earliest contact point and subdivides the hit segment so the vertex is explicitly shared by both polylines.
+- **Organic Lightning Morphology**: Natural dendritic tree branching with acute $30^\circ\text{–}45^\circ$ whiskers, lateral linkers up to $85^\circ$, 2–3 branches per trunk, and authentic T-junctions.
+- **Forward First-Hit Snapping & Shared Vertex Subdivision**: When a candidate segment approaches an existing segment within clearance, the travel vector is projected forward to a safe intersection and snapped to that shared vertex; on the final attempt, a near-miss bends directly onto the nearest point of the hit segment. The hit segment is subdivided so the vertex is explicitly shared by both polylines.
 - **Kissing-Edge Prevention**: Omission of cutter points where $d < 0.25\text{ mm}$ prevents tangent non-manifold contact between the cutter spheres and outer surface.
 - **Junction Exemption Zone**: Prevents newborn child branches from colliding with their parent segments at birth.
 - **Drop-in Compatibility**: 100% preservation of downstream CSG, export formats, and REST API.
@@ -50,14 +50,14 @@ flowchart TD
 
 ## Technical Decisions
 
-### Decision 1: Rim-Seeded Growth with First-Hit Snapping & Vertex Subdivision
-- **Chosen**: Step-by-step segment propagation from Poisson-spaced rim seeds down through the trauma band. When an advancing segment intersects or approaches within clearance $R_{\text{clear}} = W + 0.8\text{ mm}$ of an existing segment, the advancing end snaps to the earliest contact point $\mathbf{p}_{\text{hit}}$, terminates growth, and subdivides the hit segment at $\mathbf{p}_{\text{hit}}$.
-- **Rationale**: Physical brittle fractures in ceramics originate at stress concentrations (the rim/lip) and propagate downwards. Stop-on-hit with explicit vertex insertion naturally generates shared T-junctions without crossings or kissing edges.
+### Decision 1: Rim-Seeded Growth with Forward First-Hit Snapping & Vertex Subdivision
+- **Chosen**: Step-by-step segment propagation from Poisson-spaced rim seeds down through the trauma band. When an advancing segment intersects or approaches within clearance $R_{\text{clear}} = W + 0.8\text{ mm}$ of an existing segment at an arrival angle $\ge 30^\circ$, the travel vector is projected forward to a bounded safe intersection with the hit segment; the advancing end snaps to that shared vertex, terminates growth, and subdivides the hit segment. If forward projection cannot reach the segment, the final attempt bends directly onto the nearest point on the hit segment.
+- **Rationale**: Physical brittle fractures in ceramics originate at stress concentrations (the rim/lip) and propagate downwards. Stop-on-hit with explicit vertex insertion naturally generates shared T-junctions without crossings or kissing edges, while the final-attempt bend prevents the parallel “rain streak” artefact caused by stopping short.
 
 ### Decision 2: Junction Exemption Zone & Grazing Resolution
 - **Chosen**: 
   - Proximity checks against parent and incident segments are ignored within radius $R_{\text{exempt}} = \frac{W + 0.8\text{ mm}}{\sin \theta}$ around branch points and T-junctions.
-  - If a crack approaches an existing line at an arrival angle $< 30^\circ$, heading is resampled up to 3 times; if still $< 30^\circ$, it stops at the last committed point $\mathbf{p}_a$.
+  - If a crack approaches an existing line at an arrival angle $< 30^\circ$, heading is resampled; if no safe intersection is found, it stops at the last committed point $\mathbf{p}_a$.
 - **Rationale**: Prevents newborn branches from immediately self-terminating against their parents, and prevents grazing intersections from creating unprintable knife-thin ceramic wedges.
 
 ### Decision 3: Separation of Growth Step Length from Cutter Sampling

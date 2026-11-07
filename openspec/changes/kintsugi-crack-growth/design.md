@@ -92,18 +92,19 @@ To ensure the new growth engine produces authentic Wabi-Sabi fracture lines rath
 
 ```mermaid
 flowchart TD
-    Lip["Rim Impact Seed<br/>(Poisson spacing, z >= wall_max)"] --> Trunk["Primary Fissure Trunk<br/>(Heading within ±60° of down)"]
-    Trunk --> Fork["Acute Branch Fork<br/>(Departure angle 30°-45°)"]
-    Fork --> SubBranch["Secondary Whisker Fissure"]
+    Lip["Rim Impact Seed<br/>(Poisson spacing, z >= wall_max)"] --> Trunk["Primary Fissure Trunk<br/>(Heading within ±85° of down)"]
+    Trunk --> Fork["Branch Fork<br/>(30°-45° whiskers, up to 85° lateral linkers)"]
+    Fork --> SubBranch["Secondary Whisker / Lateral Fissure"]
     Trunk --> Collision{"Segment Hit Check<br/>(Earliest contact within W + 0.8mm)"}
-    Collision -->|"Arrival angle >= 30°"| TJunction["Stop-on-Hit & Vertex Snap<br/>Clean T-Junction (Shared Node)"]
+    Collision -->|"Arrival angle >= 30°, forward projection"| TJunction["Stop-on-Hit & Vertex Snap<br/>Clean T-Junction (Shared Node)"]
+    Collision -->|"Final attempt near-miss"| Bend["Bend onto nearest segment point<br/>Shared T-Junction"]
     Collision -->|"Arrival angle < 30°"| Turn["Resample Heading / Free End"]
     Collision -->|"Reaches Jittered Limit"| DepthTrunc["Penetration Termination (No Flat Shelf)"]
 ```
 
 1. **Hierarchy**: High visual contrast between thick, dominant primary fault lines and delicate secondary feeder branches.
 2. **Tortuosity**: Jagged local heading deviation ($\text{median arc / chord} \ge 1.05$, measured per junction-to-junction segment) without high-frequency zig-zags that collapse into nozzle bloat.
-3. **Natural T-Junctions**: True fracture lines terminate into existing cracks forming T-junctions (defined as continuous crack meeting at $\ge 140^\circ$), completely eliminating $120^\circ$ Voronoi Y-junctions.
+3. **Natural T-Junctions**: True fracture lines terminate into existing cracks forming T-junctions (defined as continuous crack meeting at $\ge 140^\circ$), completely eliminating $120^\circ$ Voronoi Y-junctions. T/Y junction counts are reported informationally; there is no 80% pass/fail gate shaping generation.
 4. **Rim Cascades**: Cracks begin cleanly at the lip and flow down, avoiding horizontal shelf artifacts.
 
 ---
@@ -117,7 +118,9 @@ Automated visual review is executed via `tools/test_report.py run --renders`, ge
 | **Tea Bowl** | $R = 0.0$ (Max Trauma) | Seed 0 | Perspective Side, Top Rim, Gold Isolation |
 | **Tea Bowl** | $R = 0.2$ (Severe) | Seed 1 | Perspective Side, Top Rim, Gold Isolation |
 | **Tall Vase** | $R = 0.2$ (Severe) | Seed 0 | Perspective Side, Top Rim, Gold Isolation |
-| **Tall Vase** | $R = 0.5$ (Moderate) | Seed 2 | Perspective Side, Top Rim, Gold Isolation |
+| **Thin Cylinder** | $R = 0.5$ (Moderate) | Seed 0 | Perspective Side, Top Rim, Gold Isolation |
+
+Each panel is labelled with its row name so the thin-wall empty-gold omission is unambiguous during review.
 
 ---
 
@@ -125,6 +128,6 @@ Automated visual review is executed via `tools/test_report.py run --renders`, ge
 
 - **DO** keep the Windows XP Luna chrome pixel-perfect and faithful to `DESIGN.md`.
 - **DO** set `vein` as the default fracture mode in both frontend and backend.
-- **DO** enforce minimum branch departure angles $\ge 30^\circ$ and incidence angles $\ge 30^\circ$ to prevent unprintable ceramic slivers.
+- **DO** enforce minimum branch departure angles $\ge 30^\circ$ and incidence angles $\ge 30^\circ$; lateral linkers may depart up to $85^\circ$ while headings stay within $\pm 85^\circ$ of down.
 - **DON'T** expose legacy Voronoi toggles in the end-user GUI.
 - **DON'T** generate crossing or looping cracks; every segment collision must terminate in a shared T-junction vertex.

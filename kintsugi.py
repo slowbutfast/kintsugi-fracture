@@ -1256,10 +1256,10 @@ def generate_crack_growth_paths(
                 if attempt == 0:
                     # Correlated walk: mostly small inertia-preserving
                     # changes, with occasional sharp kinks for tortuosity.
-                    if float(rng.random()) < 0.50:
-                        delta_deg = float(rng.uniform(-80.0, 80.0))
+                    if float(rng.random()) < 0.20:
+                        delta_deg = float(rng.uniform(-85.0, 85.0))
                     else:
-                        delta_deg = float(rng.normal(0.0, 20.0))
+                        delta_deg = float(rng.normal(0.0, 18.0))
                 else:
                     delta_deg = float(rng.uniform(-75.0, 75.0))
                 candidate_heading = _clamp_heading(
@@ -1325,8 +1325,12 @@ def generate_crack_growth_paths(
                 break
 
             travel = candidate - start
+            travel_length = float(np.linalg.norm(travel))
             arrival = _acute_angle_deg(travel, collision["tangent"])
-            forward = None
+            snap_hit = None
+            snap_local = None
+            snap_distance = 0.0
+            snap_angle = arrival
             if (
                 not collision["free_end"]
                 and arrival >= GROWTH_MIN_INCIDENCE_DEG - 1e-9
@@ -1339,18 +1343,42 @@ def generate_crack_growth_paths(
                     period,
                     r_clear,
                 )
-            if forward is None:
-                # Grazing approach or no safe intersection: resample the
-                # heading up to three more times before stopping short.
+                if forward is not None:
+                    snap_hit, snap_local, t_forward = forward
+                    snap_distance = t_forward * travel_length
+                    snap_angle = arrival
+                elif attempt == max_attempts - 1:
+                    # Final attempt: bend the step directly onto the nearest
+                    # point of the hit segment so the crack joins instead of
+                    # stopping short beside it.
+                    bent_hit = collision["hit"]
+                    bent_distance = float(
+                        np.linalg.norm(bent_hit - start)
+                    )
+                    bent_angle = _acute_angle_deg(
+                        bent_hit - start, collision["tangent"]
+                    )
+                    max_bend_distance = max(
+                        2.0 * travel_length, 4.0 * r_clear
+                    )
+                    if (
+                        bent_distance > 1e-9
+                        and bent_distance <= max_bend_distance
+                        and bent_angle
+                        >= GROWTH_MIN_INCIDENCE_DEG - 1e-9
+                    ):
+                        snap_hit = bent_hit
+                        snap_local = collision["hit_local"]
+                        snap_distance = bent_distance
+                        snap_angle = bent_angle
+            if snap_hit is None:
+                # Grazing approach or no safe intersection: resample.
                 continue
-
-            hit, hit_local, t_forward = forward
-            forward_distance = t_forward * float(np.linalg.norm(travel))
-            if forward_distance <= 1e-9:
+            if snap_distance <= 1e-9:
                 continue
-            if task.traveled + forward_distance > task.budget + 1e-9:
+            if task.traveled + snap_distance > task.budget + 1e-9:
                 continue
-            if hit[1] < task.z_limit - 1e-9:
+            if snap_hit[1] < task.z_limit - 1e-9:
                 continue
 
             # Re-check the extended segment: the target at its endpoint is a
@@ -1359,7 +1387,7 @@ def generate_crack_growth_paths(
                 paths,
                 task.path_id,
                 start,
-                hit,
+                snap_hit,
                 period=period,
                 r_clear=r_clear,
                 exempt_path_id=task.exempt_path_id,
@@ -1379,25 +1407,25 @@ def generate_crack_growth_paths(
             ):
                 continue
 
-            path.append(hit.copy())
-            task.traveled += forward_distance
+            path.append(snap_hit.copy())
+            task.traveled += snap_distance
             junction_records.append(
                 {
                     "point": [
-                        float(hit[0] % period),
-                        float(hit[1]),
+                        float(snap_hit[0] % period),
+                        float(snap_hit[1]),
                     ],
                     "kind": "T",
                     "path": task.path_id,
                     "parent": int(collision["path_id"]),
-                    "angle": float(arrival),
+                    "angle": float(snap_angle),
                     "parent_kink_deg": 0.0,
                 }
             )
             _subdivide_path(
                 paths[collision["path_id"]],
                 int(collision["segment_index"]),
-                hit_local,
+                snap_local,
             )
             moved = True
             terminal = True
@@ -1410,7 +1438,7 @@ def generate_crack_growth_paths(
             and task.branch_count < task.branch_limit
             and task.steps >= task.next_branch_step
             and len(path) >= 3
-            and float(rng.random()) < min(0.90, 0.22 * severity)
+            and float(rng.random()) < min(0.90, 0.15 * severity)
         ):
             origin = path[-2].copy()
             incoming = path[-2] - path[-3]
@@ -1481,7 +1509,7 @@ def generate_crack_growth_paths(
                         )
                     )
                     task.branch_count += 1
-                    task.next_branch_step = task.steps + 3
+                    task.next_branch_step = task.steps + 6
 
         if moved and not terminal:
             tasks.append(task)
@@ -1765,6 +1793,8 @@ def _tortuosity_values(
     paths: Sequence[Sequence[np.ndarray]],
     junctions: Sequence[dict],
     period: float,
+    *,
+    min_arc_length: float = 0.0,
 ) -> list[float]:
     values: list[float] = []
     for path in paths:
@@ -1791,6 +1821,8 @@ def _tortuosity_values(
             arc = float(
                 np.sum(np.linalg.norm(np.diff(piece, axis=0), axis=1))
             )
+            if arc < min_arc_length:
+                continue
             values.append(arc / chord)
     return values
 
@@ -1895,7 +1927,14 @@ def analyze_growth_paths(
         for group in junctions
         for angle in group["departure_deg"]
     ]
-    tortuosity = _tortuosity_values(paths, junctions, period)
+    tortuosity = _tortuosity_values(
+        paths,
+        junctions,
+        period,
+        # Single-step fragments cannot express arc/chord tortuosity; only
+        # multi-step junction-to-junction pieces contribute to the statistic.
+        min_arc_length=3.0 * W,
+    )
 
     return {
         "paths": len(paths),
@@ -2271,6 +2310,14 @@ def _densify_projected_paths(
     return densified
 
 
+def _vein_depth(width: float, thickness: float) -> float:
+    return min(
+        0.75 * float(width),
+        0.5 * float(thickness),
+        float(thickness) - GROWTH_CLEARANCE_MM,
+    )
+
+
 def _vein_point_groups(
     projected_paths: Sequence[Sequence[dict]], W: float
 ) -> list[list[dict]]:
@@ -2288,11 +2335,7 @@ def _vein_point_groups(
         current: list[dict] = []
         for point in path:
             thickness = float(point["t"])
-            depth = min(
-                0.75 * width,
-                0.5 * thickness,
-                thickness - GROWTH_CLEARANCE_MM,
-            )
+            depth = _vein_depth(width, thickness)
             if depth < GROWTH_MIN_DEPTH_MM - 1e-9:
                 if current:
                     groups.append(current)
@@ -2313,6 +2356,24 @@ def _vein_point_groups(
         if current:
             groups.append(current)
     return groups
+
+
+def _vein_carved_path_count(
+    projected_paths: Sequence[Sequence[dict]], W: float
+) -> int:
+    """Count source paths that retain at least one printable cutter point."""
+    width = float(W)
+    step = 0.5 * width
+    count = 0
+    for path in _densify_projected_paths(projected_paths, step):
+        for point in path:
+            if (
+                _vein_depth(width, float(point["t"]))
+                >= GROWTH_MIN_DEPTH_MM - 1e-9
+            ):
+                count += 1
+                break
+    return count
 
 
 def _build_vein_cutter(
@@ -2860,7 +2921,9 @@ def generate_kintsugi_mesh(
                 "gold": 0,
             },
             "num_cracks": 0,
-            "seams_omitted": True,
+            # Wealth is an intentional pass-through, not a carved-seam
+            # omission caused by insufficient wall thickness.
+            "seams_omitted": False,
             "cutter_attempts": 0,
             "cutter_variants": 0,
             "guard_evaluations": 0,
@@ -2973,6 +3036,13 @@ def generate_kintsugi_mesh(
 
     gold_omitted = _gold_solid_omitted(gold, gold_export_mesh)
     params["seams_omitted"] = bool(gold_omitted)
+    if gold_omitted:
+        num_cracks = 0
+    elif mode == "vein":
+        num_cracks = _vein_carved_path_count(projected_paths, params["W"])
+    else:
+        num_cracks = len(projected_paths)
+    params["num_carved_paths"] = int(num_cracks)
 
     export_started = time.perf_counter()
     export_kintsugi_stl(
@@ -3015,7 +3085,7 @@ def generate_kintsugi_mesh(
             "ceramic": int(len(ceramic_trimesh.faces)),
             "gold": 0 if gold_omitted else int(len(gold_trimesh.faces)),
         },
-        "num_cracks": 0 if gold_omitted else int(len(projected_paths)),
+        "num_cracks": int(num_cracks),
         "cutter_attempts": int(params.get("cutter_attempts", 0)),
         "cutter_variants": int(params.get("cutter_variants", 0)),
         "guard_evaluations": int(params.get("guard_evaluations", 0)),

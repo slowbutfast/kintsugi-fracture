@@ -240,11 +240,11 @@ growth audit PASS: seeds=200 rows=4 crossings=0 clearance=0 min_clear=2.440 T-ra
 }
 ```
 
-### Visual sign-off — `output/spike/contact_sheet.png`
+### Agent Visual Inspection Notes — `output/spike/contact_sheet.png`
 
 - **Date inspected**: 2026-11-07
 - **Method**: The 12-panel PNG was rendered by `tools/spike_contact_sheet.py` and inspected directly. The `reports/contact_sheet.png` copy is produced by the full profile. All four rows carry bitmap labels and the thin-cylinder row is R=0.5.
-- **Result**: **PASS (visual)**. Primary trunks originate at the rim and cascade downwards; whisker fissures and lateral 30–85° linkers connect adjacent cracks, eliminating the parallel “rain streak” look. No Voronoi honeycomb cell tiling is visible. The tea-bowl top view shows gold seam entries at the lip without a flat horizontal shelf. The thin-cylinder R=0.5 row intentionally shows the empty-gold omission: no gold channel and no gold facet, matching the `seams_omitted` behaviour.
+- **Result**: **AGENT REVIEW — PASS (human sign-off pending)**. Primary trunks originate at the rim and cascade downwards; whisker fissures and lateral 30–85° linkers connect adjacent cracks, eliminating the parallel “rain streak” look. No Voronoi honeycomb cell tiling is visible. The tea-bowl top view shows gold seam entries at the lip without a flat horizontal shelf. The thin-cylinder R=0.5 row intentionally shows the empty-gold omission: no gold channel and no gold facet, matching the `seams_omitted` behaviour. Task 2.4 remains open for a human reviewer to confirm this against reference Kintsugi morphology.
 
 ### TDD red-phase record
 
