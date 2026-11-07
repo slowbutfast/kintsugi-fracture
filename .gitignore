@@ -18,3 +18,7 @@ output/round3_det_*/
 # Environment
 .env
 .env.*
+
+# Workstation test reports and logs (see TESTING.md)
+reports/
+logs/

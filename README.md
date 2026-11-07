@@ -65,6 +65,15 @@ result = kintsugi.generate_kintsugi_mesh("presets/vase.stl", "output/vase", R=0.
 
 ## Tests and verification
 
+Day to day, tests run on a workstation and come back to the VPS as a standard report. See **[TESTING.md](TESTING.md)**:
+
+```bash
+.venv/bin/python tools/test_report.py run [--profile full]   # workstation
+.venv/bin/python tools/test_report.py check report.txt      # VPS: does it apply, and what passed?
+```
+
+The individual commands:
+
 ```bash
 .venv/bin/python -m unittest discover -s tests -v          # 35 tests
 .venv/bin/python tools/crack_graph_audit.py --seeds 200      # graph on the true periodic Voronoi; 0 crossings

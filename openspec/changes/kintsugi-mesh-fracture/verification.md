@@ -2446,6 +2446,28 @@ Round-3 evidence is in `output/verification/crack_graph_audit.json`
 `output/verification/sweep_round3.json` and
 `output/verification/renders_round3/` (including the two 2-D graph PNGs).
 
+---
+
+## 12. Independent macOS verification report (2026-11-07)
+
+An external run was reported from the separate checkout
+`/Users/gregorylazatin/Documents/Dev/projects/kintsugi-fracture`, using its
+isolated `.venv`:
+
+| Host | Reported value |
+|---|---|
+| OS | macOS 27.2 (Darwin 27.2.0 arm64) |
+| CPU | Apple M6 (arm64, Apple Silicon) |
+| Python | 3.11.18 |
+
+The supplied `logs/tests.log` summary reports **35 tests in 37.917 seconds,
+OK**. The same report states that the working tree remained clean. The log and
+`walkthrough.md` were not present in this Linux checkout, so the command,
+individual test names, dependency versions and walkthrough details could not
+be independently inspected here; this entry records the supplied report,
+not a locally reproduced run. The report does not include Bambu Studio or
+PrusaSlicer import results, so task 6.3 remains open.
+
 ## 12. Independent verification of round 3 (2026-11-07)
 
 Round 3 (F14–F17) was re-checked by the reviewer on **seeds the implementing
@@ -2480,6 +2502,32 @@ Round 3 is accepted: F14, F15a, F15b, F16 and F17 are fixed as specified.
 - **F18.** Make the noise displacement a strict perturbation of the identity: scale the octave amplitudes, or express the z frequency in units of the mean seed spacing rather than absolute mm, so that the analytic bound `Σ_k a_k·|ω_k| < 1` (target ≤ 0.7) holds. A map `x + η(x)` with `Lip(η) < 1` is injective, so planarity then survives noise by construction. Then extend `test_crack_paths_lie_on_periodic_voronoi` (or add a test) to assert zero crossings **with noise on**. Expect less fine-scale wiggle. Reviewing the renders for aesthetics is part of this fix.
 - **F19.** Let rim-bound cracks overshoot: truncate at `wall_z_max + W` instead of `wall_z_max − W/2`, and project any point above the rim with a ray at `wall_z_max − ε`, so the ribbon slab passes cleanly through the rim face instead of kissing it. Keep the floor limit as is. Needs a sweep: the rim face is exactly where coplanar cutter faces would come back.
 - **F20.** Log the change in §11 and add an assertion to `test_api_fracture_*`.
+
+### Cross-platform test run (2026-11-07)
+
+The suite was also run on a second machine from a clean clone of
+`https://github.com/slowbutfast/kintsugi-fracture` at commit `fffe954eb047`.
+That commit was confirmed byte-identical to the verified VPS tree: Git blob SHAs
+match for `kintsugi.py`, `web_app.py`, `sample_models.py`, `tests/test_kintsugi.py`,
+`tests/test_web_api.py` and `tests/fixtures.py`.
+
+| Host | OS / CPU | Python | Result | Wall time |
+|---|---|---|---|---|
+| VPS (reviewer run, §12 above) | Linux 5.15 aarch64, 3× Neoverse-N1 | 3.11 | 35/35 OK | 315.0 s |
+| Developer workstation | macOS 27.2 (Darwin 27.2.0) arm64, Apple M6 | 3.11.18 | **35/35 OK** | **37.9 s** |
+
+```text
+----------------------------------------------------------------------
+Ran 35 tests in 37.917s
+
+OK
+```
+
+What this adds: the engine, the guard and `test_determinism` (two runs in one
+process, byte-identical) behave the same on a second OS and CPU. What it does not
+cover: cross-*machine* byte identity. Output MD5s are tied to the machine and are
+not compared between hosts, because floating-point rounding can differ between
+CPUs. The audits and sweeps were run only on the VPS (§11, §12 above).
 
 ### Still open from earlier rounds
 

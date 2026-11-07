@@ -53,6 +53,22 @@ Run with `.venv/bin/python -m unittest tests/test_kintsugi.py -v`. The fixture i
 - `test_vein_no_retries_out_of_sample_cases`: seven previously retrying vein cases require `cutter_attempts == 1` and clean STLs.
 - `test_wall_range_clamp_keeps_gold_out_of_floor`: R=0 ribbon seed 1 has no gold vertex below the floor height with radius < inner-wall radius − 1 mm, and `median_two_hit_wall` is positive.
 
+## Workstation Test Reports
+
+Tests normally run on a workstation, and results come back to the VPS as a
+`kintsugi-test-report/1` block (workflow and schema in `TESTING.md`).
+
+- Workstation: `.venv/bin/python tools/test_report.py run` (unit tests), or
+  `--profile full` (adds the crack-graph audit, the 160-run seed-500 sweep and
+  the noise-fold audit).
+- VPS: `.venv/bin/python tools/test_report.py check <pasted block or JSON>`.
+  Exit 0/1 means the report applies to the current VPS tree (pass/fail). Exit 2
+  means it was produced from different code and must not be used as evidence.
+- Applicability is decided by a source fingerprint (Git blob SHA-1s of the code,
+  tests, tools, static files and presets), not by the commit hash.
+- `noise_fold` is reported as `KNOWN-FAIL(F18)` until F18 is fixed. Remove it
+  from `KNOWN_OPEN` in the same change that fixes F18.
+
 ## Manual Verification
 
 - **Parametric Bowl Sample Generation**:
