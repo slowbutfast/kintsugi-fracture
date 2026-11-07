@@ -72,20 +72,9 @@ The user interface retains **100% fidelity to the authentic Windows XP Luna desk
 
 ## 4. Component Anatomy & States
 
-### Component: Generator Selector (`select.xp-select`)
-- **Placement**: Inside the "Fracture Settings" parameter well on the left panel.
-- **Styling**: Classic Windows XP beveled select box with standard Tahoma text.
-- **Options**:
-  1. `Organic Lightning (Recommended)` (value: `growth`, default)
-  2. `Voronoi Tiling (Legacy)` (value: `voronoi`)
-- **States**:
-  - **Default**: Background `#ffffff`, border `1px solid #7f9db9`, inset shadow.
-  - **Focus**: `1px dotted #000000` text outline.
-  - **Disabled**: Background `#ece9d8`, text `#888888`.
-
 ### Component: Mode Selector (`radio` group)
-- **Placement**: Under "Fracture Mode".
-- **Default State**: **Vein Inlay** (`vein`) is pre-selected by default (switched from Ribbon).
+- **Placement**: Under "Fracture Mode" in the left parameter well.
+- **Default State**: **Vein Inlay** (`vein`) is pre-selected by default (switched from Ribbon), reflecting the thin-wall ceramic fabrication priority.
 - **Secondary Option**: **Ribbon Cut** (`ribbon`).
 
 ### Component: 3D Viewport Visual Rendering
@@ -101,17 +90,17 @@ To ensure the new growth engine produces authentic Wabi-Sabi fracture lines rath
 
 ```mermaid
 flowchart TD
-    Lip["Rim Impact Seed<br/>(z >= wall_max)"] --> Trunk["Primary Fissure Trunk<br/>(Random-walk downward heading)"]
+    Lip["Rim Impact Seed<br/>(z >= wall_max)"] --> Trunk["Primary Fissure Trunk<br/>(Heading within ±60° of down)"]
     Trunk --> Fork["Acute Branch Fork<br/>(Departure angle 30°-45°)"]
     Fork --> SubBranch["Secondary Whisker Fissure"]
-    Trunk --> Collision{"Segment Hit Check"}
-    Collision -->|"Hits Existing Crack"| TJunction["Stop-on-Hit<br/>Clean T-Junction (No Crossings)"]
-    Collision -->|"Reaches Lower Wall"| WallTrunc["Smooth Wall-Band Termination"]
+    Trunk --> Collision{"Segment Hit Check<br/>(Distance <= W)"}
+    Collision -->|"Hits Existing Crack"| TJunction["Stop-on-Hit & Vertex Snap<br/>Clean T-Junction (No Crossings)"]
+    Collision -->|"Reaches Depth Limit"| DepthTrunc["H(S) Penetration Termination"]
 ```
 
 1. **Hierarchy**: High visual contrast between thick, dominant primary fault lines and delicate secondary feeder branches.
-2. **Tortuosity**: Jagged local heading deviation ($\text{median arc / chord} \ge 1.05$) without high-frequency zig-zags that collapse into nozzle bloat.
-3. **No Hexagonal Honeycombs**: Junctions must be acute T-junctions ($> 80\%$), completely eliminating $120^\circ$ Voronoi Y-junctions.
+2. **Tortuosity**: Jagged local heading deviation ($\text{median arc / chord} \ge 1.05$, measured per junction-to-junction segment) without high-frequency zig-zags that collapse into nozzle bloat.
+3. **Natural T-Junctions**: Junctions must be acute T-junctions ($> 80\%$), completely eliminating $120^\circ$ Voronoi Y-junctions.
 4. **Rim Cascades**: Cracks begin cleanly at the lip and flow down, avoiding horizontal shelf artifacts.
 
 ---
@@ -133,6 +122,6 @@ Automated visual review is executed via `tools/test_report.py run --renders`, ge
 
 - **DO** keep the Windows XP Luna chrome pixel-perfect and faithful to `DESIGN.md`.
 - **DO** set `vein` as the default fracture mode in both frontend and backend.
-- **DO** enforce minimum branch departure angles $\ge 30^\circ$ to prevent unprintable ceramic slivers.
-- **DON'T** introduce modern flat UI styles, rounded border radii $> 4\text{px}$, or dark mode themes.
-- **DON'T** generate crossing or looping cracks; every segment collision must terminate in a T-junction.
+- **DO** enforce minimum branch departure angles $\ge 30^\circ$ and incidence angles $\ge 30^\circ$ to prevent unprintable ceramic slivers.
+- **DON'T** expose legacy Voronoi toggles in the end-user GUI.
+- **DON'T** generate crossing or looping cracks; every segment collision must terminate in a shared T-junction vertex.

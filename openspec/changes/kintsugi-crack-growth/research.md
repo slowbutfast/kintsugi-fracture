@@ -1,7 +1,7 @@
 ## Source material
 
 - **2026-11-07, Project Lead**: "I don't need super precise accuracy on 100% of objects right now since this is just mostly a prototype. However I do care a lot about the visual accuracy and aesthetics... I find the gold seams, lightning-like cracks in conventional objects very aesthetically pleasing... prioritize aesthetics over 100% accuracy of crack generation."
-- **2026-11-07, Agent 1 Review**: "In a Voronoi diagram every junction is a Y with roughly 120° between branches, and every crack is a cell boundary. That's the honeycomb look, and no amount of noise turns it into fracture. What I'd build is sequential crack growth with stop-on-hit... Check every new segment against all existing segments, including their copies one circumference to either side. When a crack hits another crack, it stops there and the hit point becomes a shared junction. That gives the T-junctions real ceramic shows."
+- **2026-11-07, Agent 1 Review**: "In a Voronoi diagram every junction is a Y-junction and every crack is a cell boundary. That's the honeycomb look, and no amount of noise turns it into fracture. What I'd build is sequential crack growth with stop-on-hit... Check every new segment against all existing segments, including their copies one circumference to either side. When a crack hits another crack, it stops there and the hit point becomes a shared junction. That gives the T-junctions real ceramic shows."
 - **2026-11-07, Agent 2 Review**: "The F18 fix flattened the cracks: The cap is always hit, so the noise amplitude is now a flat 1.35 mm for every vessel and severity... the cracks are now almost straight Voronoi polygon edges with about one seam-width of wiggle, closer to a polygon tiling than to fractured ceramic... I'd prototype a cylindrical branching process with recursive jaggedness first."
 
 ### Raised but not acted on
@@ -9,54 +9,56 @@
 - **Dijkstra Shortest Path on Mesh Graph**: Proposed as a graph search alternative. Deliberately rejected because it requires adding `networkx` (violating standing no-new-dependencies rule), and paths staircase along coarse facet edges depending on triangle resolution.
 - **Unconstrained Midpoint Displacement**: Proposed as fractal curve generator. Deliberately rejected because midpoint displacement of individual curves does not check or prevent separate branches from colliding and self-crossing.
 - **Spiral Vase Mode Dual-Material Inlays**: Investigated for slicing. Deliberately set aside because true spiral vase mode in Bambu Studio / PrusaSlicer prints a single uninterrupted perimeter contour and rejects multi-material toolhead switching. The project targets thin-wall standard mode (2–3 perimeters) instead.
+- **Voronoi in the Web GUI**: Considered exposing a legacy Voronoi dropdown in the GUI. Deliberately rejected: Voronoi is retained as an internal/CLI comparative flag (`--generator voronoi`) during transition, not as a permanent user-facing product surface.
 
 ## Glossary
 
 | Term | Means | Does NOT mean |
 | :--- | :--- | :--- |
-| **Sequential Crack Growth** | Iterative ray/segment propagation in unrolled $(\theta, z)$ space from rim impact seeds downward. | A static tessellation or space-partitioning grid. |
-| **Stop-on-Hit** | Terminating a propagating crack segment at the point of collision with any existing segment, creating a T-junction. | Letting curves cross and attempting to resolve crossings in post-processing. |
-| **T-Junction** | A three-way intersection where a propagating crack terminates perpendicular or acute to an existing crack line (characteristic of physical brittle fracture). | A Voronoi Y-junction where three edges meet at symmetric ~120° angles (characteristic of foam or soap bubbles). |
-| **Vein Inlay Mode** | Carving shallow surface channels (depth $\le \text{wall} - 0.8\text{ mm}$) filled with gold without cutting through the vessel wall. | Through-body slicing that cuts the vessel into detached floating shards. |
-| **Tortuosity** | The ratio of curve arc length to end-to-end chord length ($\frac{L}{\|\mathbf{p}_b - \mathbf{p}_a\|}$). | A topological fractal dimension estimation. |
+| **Sequential Crack Growth** | Iterative segment propagation in unrolled $(\theta, z)$ space from rim impact seeds downward. | A static tessellation or space-partitioning grid. |
+| **Stop-on-Hit** | Snapping a candidate segment to the nearest point on an existing segment upon collision, splitting the hit segment with a new shared vertex. | Merely stopping nearby without a shared vertex (which risks kissing edges). |
+| **T-Junction** | A three-way intersection where a propagating crack terminates perpendicular or acute into an existing crack line, forming a shared vertex on both paths. | A trivalent Voronoi Y-junction where three cell boundaries meet. |
+| **Vein Inlay Mode** | Carving shallow surface channels leaving $\ge 0.8\text{ mm}$ ceramic wall backing, fading to zero depth if walls are thinner than $0.8\text{ mm}$. | Slicing through the vessel wall to release loose ceramic shards. |
+| **Tortuosity** | The ratio of curve arc length to end-to-end chord length ($\frac{L}{\|\mathbf{p}_b - \mathbf{p}_a\|}$), measured per segment between junctions. | An abstract box-counting fractal dimension estimation. |
 
 ## External research
 
 | Source | What it establishes | Licence | Accessed |
 | :--- | :--- | :--- | :--- |
-| Prusa Knowledge Base: Spiral Vase | Single-perimeter continuous extrusion toolpath incompatible with multi-material toolhead switching. | Public Documentation | 2026-11-07 |
-| Prusa Knowledge Base: Multi-Material 3MF | 3MF files containing multiple objects/components map to separate extruder assignments. | Public Documentation | 2026-11-07 |
+| [Prusa Knowledge Base: Spiral Vase](https://help.prusa3d.com/article/layers-and-perimeters_1748?product=cw1) | Single-perimeter continuous extrusion toolpath incompatible with multi-material toolhead switching. | Public Documentation | 2026-11-07 |
+| [Prusa Knowledge Base: Multi-Material 3MF](https://help.prusa3d.com/article/importing-multi-material-model_121191?product=mmu1) | 3MF files containing multiple objects/components map to separate extruder assignments. | Public Documentation | 2026-11-07 |
 | Discrete Crack Growth in Brittle Solids | Physical fracture exhibits progressive propagation, dendritic branching, and arrest at existing boundaries (T-junctions). | Academic domain knowledge | 2026-11-07 |
 
 ## Candidate tech
 
 | Option | Decision | Reason | Date |
 | :--- | :--- | :--- | :--- |
-| SciPy Voronoi + Sine Noise Field | Superseded | Inherently produces 120° honeycomb tiles; bounding noise gradient to avoid folding (F18) collapses amplitude to 1.35 mm, flattening cracks. | 2026-11-07 |
+| SciPy Voronoi + Sine Noise Field | Superseded | Inherently produces trivalent honeycomb cell boundaries. While PATCH-01 achieved 0.0% folds on presets, bounding the noise flattened amplitude from 5–6.5 mm to 1.35 mm, destroying organic crack character. Also carries a small-radius ($r_{bar} \le 12\text{ mm}$) Jacobian proof gap. | 2026-11-07 |
 | NetworkX Mesh Graph Dijkstra | Rejected | Adds external dependency; staircases along facet edges of coarse meshes. | 2026-11-07 |
 | Midpoint Displacement Alone | Rejected | Cannot prevent separate branches from crossing without global collision graph. | 2026-11-07 |
 | Rim-Seeded Growth with Stop-on-Hit | Adopted | Guarantees zero crossings by construction; produces natural T-junctions, lightning morphology, and organic tortuosity. | 2026-11-07 |
 
 ## Patterns adopted
 
-- **Cylindrical Unrolling with Periodic Seam Wrapping**: Evaluating segments in $(\theta, z)$ coordinates and checking collisions against virtual copies shifted by $\pm 2\pi$. Retained from `kintsugi.py` seam wrapping logic.
+- **Cylindrical Unrolling with Periodic Seam Wrapping**: Evaluating segments in $(\theta, z)$ coordinates and checking collisions against virtual copies shifted by $\pm 2\pi\bar{r}$.
 - **Drop-in Generator Seam**: Keeping `generate_crack_paths(params, rng) -> list[np.ndarray]` as the contract feeding `project_crack_paths` and `_build_vein_cutter`.
-- **Aesthetic Floor Gating**: Measuring median tortuosity ($\ge 1.05$) to prevent regressions to straight lines, while reserving aesthetic sign-off for human/multimodal contact sheets.
+- **Aesthetic Floor Gating**: Measuring median tortuosity ($\ge 1.05$) to prevent regressions to straight lines, alongside visual contact sheet inspection.
 
 ## Verified facts
 
 | Claim | Value | How verified | Date | Volatility |
 | :--- | :--- | :--- | :--- | :--- |
-| Voronoi produces Y-junctions | 100% Y-junctions (~120°) | Mathematical definition of 2D Voronoi vertices | 2026-11-07 | stable |
+| Voronoi produces honeycomb cell tiles | Visually resembles tile grout | Geometric inspection of 2D Voronoi polygons | 2026-11-07 | stable |
 | PATCH-01 noise amplitude cap | Flat 1.35 mm | Inspected `kintsugi.py:445` scaling logic | 2026-11-07 | stable |
+| PATCH-01 preset sweeps | 0.0% folds, 0 crossings on presets | Tested audit and sweep runs | 2026-11-07 | stable |
+| Voronoi small-radius fold gap | det(I+J) < 0 at $r_{bar} \le 12\text{ mm}$ | Measured by Agent 2 direct evaluation | 2026-11-07 | stable |
 | Unit test suite passing | 36/36 OK | Ran `.venv/bin/python -m unittest discover -s tests -v` | 2026-11-07 | stable |
-| Spiral vase slicer behavior | Single outline, no multi-material | Verified against PrusaSlicer / Bambu Studio docs | 2026-11-07 | stable |
 
 ## Unverified assumptions
 
 | Assumption | Confidence | Cost to check |
 | :--- | :--- | :--- |
-| Random-walk heading with step size $\ge W/2$ does not trigger Manifold3D boolean crashes | High | Implement prototype spike and run Manifold3D CSG boolean sweep |
+| Random-walk heading with step size $1.5W\text{–}3W$ and cutter subdivision $\le W/2$ does not trigger Manifold3D boolean crashes | High | Implement prototype spike and run Manifold3D CSG boolean sweep |
 | Thin-wall printing with 0.8 mm remaining ceramic is physically leak-proof on standard FDM | Medium | Physical slicer and test print |
 
 ## Superseded claims
