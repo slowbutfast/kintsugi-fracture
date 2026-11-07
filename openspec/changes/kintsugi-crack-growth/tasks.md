@@ -27,3 +27,14 @@
 - [x] 4.3 Run full 160-sample held-out sweep with growth generator (`.venv/bin/python tools/test_report.py run --profile full --renders`) and confirm 0 non-watertight meshes and 0 cutter retries
 - [~] 4.4 Perform thin-wall slicing check of `kintsugi_assembly.3mf` from `thin_cylinder` in Bambu Studio / PrusaSlicer and record part count and toolpath backing evidence (partial: no slicer installed; automated 3MF two-part structural audit + watertight/volume evidence recorded in `verification.md`; GUI slicer import remains a human workstation check)
 - [x] 4.5 Populate `verification.md` with Requirement Adherence Matrix, tortuosity metric statistics, resolved assumptions, and schedule legacy Voronoi deprecation
+
+## Patch 01: Fix empty-gold export on thin walls, enable T-junction forward snapping, and tune crack morphology
+
+- [ ] P01.1 Scaffold reproducing test `test_empty_gold_solid_omits_file_and_warns` on thin_cylinder at R=0.62 in `tests/test_kintsugi.py`
+- [ ] P01.2 Fix empty gold STL/3MF export in `kintsugi.py` when `gold` has 0 triangles, reporting `seams_omitted: true` and `num_cracks: 0`
+- [ ] P01.3 Update forward collision snapping in `kintsugi.py`: project forward to form shared T-junctions upon entering clearance zone at arrival angle >= 30°
+- [ ] P01.4 Tune crack morphology in `kintsugi.py`: correlated heading walk, allow multiple branches (up to 2-3) and sideways linking angles (up to ±85°)
+- [ ] P01.5 Update `growth_audit.py` to report junction distributions without gating on 80% T-ratio, and regenerate contact sheet with labelled rows
+- [ ] P01.6 Update `specs/mesh-fracture-engine/spec.md` to align with the forward collision snapping and empty gold omission behavior
+- [ ] P01.7 Run reproducing test and full test suite (`.venv/bin/python -m unittest discover -s tests -v`) verifying 100% pass
+- [ ] P01.8 Update `verification.md` and mark PATCH-01 resolved in `patch.md`
