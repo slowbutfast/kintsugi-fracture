@@ -1,0 +1,24 @@
+{
+  "result": {
+    "num_cracks": 11,
+    "cutter_attempts": 1,
+    "cutter_variants": 1,
+    "triangle_counts": {
+      "ceramic": 7012,
+      "gold": 6224
+    },
+    "volumes": {
+      "input": 15683.053137730956,
+      "ceramic": 15660.588592863169,
+      "gold": 22.46454486778762,
+      "pre_swap_ceramic": 15660.588592863169,
+      "pre_swap_gold": 22.46454486778762
+    }
+  },
+  "ceramic_watertight": true,
+  "gold_watertight": true,
+  "three_mf_path": "output/verification/thin_cylinder_slicer/kintsugi_assembly.3mf",
+  "3mf_has_ceramic": true,
+  "3mf_has_gold": true,
+  "3mf_component_count": 2
+}

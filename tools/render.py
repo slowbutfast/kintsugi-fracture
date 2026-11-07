@@ -147,7 +147,9 @@ noise0 = lambda rbar, a, rng: (lambda u, z: (np.zeros_like(np.asarray(u, float))
 real_noise = kintsugi._make_noise
 for label, use_noise in (("graph_noise_off", False), ("graph_noise_on", True)):
     kintsugi._make_noise = real_noise if use_noise else noise0
-    paths = kintsugi.generate_crack_paths(p, np.random.default_rng(3))
+    paths = kintsugi.generate_crack_paths(
+        p, np.random.default_rng(3), generator="voronoi"
+    )
     P = p["period"]; Hh = 300; Ww = 900
     img = np.zeros((Hh, Ww, 3)); img[:] = (245, 243, 236)
     zlo, zhi = p["z_min"] - 0.2 * p["H"], p["z_max"] + 0.2 * p["H"]

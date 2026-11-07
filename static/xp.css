@@ -271,6 +271,38 @@ select {
   margin-bottom: var(--space-md);
 }
 
+.radio-group {
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  border: 0;
+}
+
+.radio-group .field-label {
+  padding: 0;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 22px;
+  color: var(--on-surface);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.radio-option input[type="radio"] {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--action-end);
+}
+
+.radio-group:focus-visible {
+  outline: 1px dotted var(--border-dark);
+  outline-offset: 2px;
+}
+
 .field-note {
   margin-top: var(--space-sm);
   color: var(--on-surface-muted);

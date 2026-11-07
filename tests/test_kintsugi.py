@@ -616,7 +616,9 @@ class KintsugiTestCase(unittest.TestCase):
                     N = max(int(params["N"]), 1)
                     for seed in range(40):
                         paths = kintsugi.generate_crack_paths(
-                            params, np.random.default_rng(seed)
+                            params,
+                            np.random.default_rng(seed),
+                            generator="voronoi",
                         )
                         self.assertTrue(paths, (preset_name, S, seed))
                         points = np.vstack(paths)
@@ -670,7 +672,9 @@ class KintsugiTestCase(unittest.TestCase):
         with unittest.mock.patch.object(kintsugi, "_make_noise", _zero_noise):
             for seed in range(20):
                 paths = kintsugi.generate_crack_paths(
-                    params, np.random.default_rng(seed)
+                    params,
+                    np.random.default_rng(seed),
+                    generator="voronoi",
                 )
                 endpoints = [end for path in paths for end in (path[0], path[-1])]
                 dangling = 0
@@ -951,7 +955,9 @@ class KintsugiTestCase(unittest.TestCase):
                 ]
                 for seed in range(20):
                     paths = kintsugi.generate_crack_paths(
-                        params, np.random.default_rng(seed)
+                        params,
+                        np.random.default_rng(seed),
+                        generator="voronoi",
                     )
                     for path in paths:
                         self.assertTrue(
@@ -979,7 +985,9 @@ class KintsugiTestCase(unittest.TestCase):
         with unittest.mock.patch.object(kintsugi, "_make_noise", _zero_noise):
             for seed in range(20):
                 paths = kintsugi.generate_crack_paths(
-                    params, np.random.default_rng(seed)
+                    params,
+                    np.random.default_rng(seed),
+                    generator="voronoi",
                 )
                 for path in paths:
                     for endpoint in (path[0], path[-1]):
@@ -1057,6 +1065,160 @@ class KintsugiTestCase(unittest.TestCase):
 
 
     # ------------------------------------------------------------------
+    # kintsugi-crack-growth hard invariants (scaffolded before implementation)
+    # ------------------------------------------------------------------
+    def test_growth_paths_planar_and_tjunc(self) -> None:
+        import kintsugi
+
+        mesh, manifold = kintsugi.validate_and_load_mesh(self.bowl, 0.0)
+        total_junctions = 0
+        total_t_junctions = 0
+        for severity in (0.6, 1.0):
+            params = kintsugi.compute_parameters(
+                severity, mesh, manifold=manifold
+            )
+            period = float(params["period"])
+            for seed in range(12):
+                with self.subTest(S=severity, seed=seed):
+                    paths = kintsugi.generate_crack_growth_paths(
+                        params, np.random.default_rng(seed)
+                    )
+                    self.assertTrue(paths)
+                    self.assertIsNone(
+                        _first_crossing(paths, period),
+                        f"S={severity} seed={seed} growth paths cross",
+                    )
+                    stats = kintsugi.analyze_growth_paths(paths, params)
+                    self.assertEqual(stats["crossings"], 0)
+                    self.assertEqual(stats["clearance_violations"], 0)
+                    if stats["min_incidence_deg"] is not None:
+                        self.assertGreaterEqual(
+                            stats["min_incidence_deg"], 30.0 - 1e-6
+                        )
+                    if stats["min_departure_deg"] is not None:
+                        self.assertGreaterEqual(
+                            stats["min_departure_deg"], 30.0 - 1e-6
+                        )
+                    total_junctions += int(stats["junctions"])
+                    total_t_junctions += int(stats["t_junctions"])
+        self.assertGreater(total_junctions, 0, "no shared junctions formed")
+        self.assertGreater(total_t_junctions, 0, "no T-junction-like nodes")
+        self.assertGreaterEqual(
+            total_t_junctions / total_junctions, 0.80
+        )
+
+    def test_vein_depth_and_kissing_prevention(self) -> None:
+        import kintsugi
+
+        width = 2.0
+        normal = np.array([0.0, 0.0, 1.0])
+        projected = [
+            [
+                {"p": np.array([0.0, 0.0, 5.0]), "n": normal, "t": 3.0, "u": 0.0, "z": 5.0},
+                {"p": np.array([2.0, 0.0, 5.0]), "n": normal, "t": 1.2, "u": 2.0, "z": 5.0},
+                {"p": np.array([4.0, 0.0, 5.0]), "n": normal, "t": 1.0, "u": 4.0, "z": 5.0},
+                {"p": np.array([6.0, 0.0, 5.0]), "n": normal, "t": 0.9, "u": 6.0, "z": 5.0},
+                {"p": np.array([8.0, 0.0, 5.0]), "n": normal, "t": 3.0, "u": 8.0, "z": 5.0},
+            ]
+        ]
+
+        groups = kintsugi._vein_point_groups(projected, width)
+        self.assertEqual(len(groups), 2, "omitted points must split the cutter")
+        seen_t = []
+        for group in groups:
+            self.assertGreater(len(group), 0)
+            for point in group:
+                depth = float(point["depth"])
+                self.assertGreaterEqual(depth, 0.25 - 1e-9)
+                self.assertLessEqual(depth, min(0.75 * width, 0.5 * point["t"], point["t"] - 0.8) + 1e-9)
+                seen_t.append(float(point["t"]))
+        self.assertNotIn(1.0, seen_t)
+        self.assertNotIn(0.9, seen_t)
+
+        cutter = kintsugi._build_vein_cutter(
+            projected,
+            width,
+            np.random.default_rng(0),
+            per_path=False,
+        )
+        self.assertFalse(cutter.is_empty())
+        self.assertEqual(kintsugi._roundtrip_bad_edges(cutter), 0)
+
+    def test_growth_rim_seeding_and_penetration(self) -> None:
+        import kintsugi
+
+        mesh, manifold = kintsugi.validate_and_load_mesh(self.bowl, 0.0)
+        params = kintsugi.compute_parameters(0.6, mesh, manifold=manifold)
+        paths = kintsugi.generate_crack_growth_paths(
+            params, np.random.default_rng(0)
+        )
+        period = float(params["period"])
+        rim_paths = [
+            path
+            for path in paths
+            if float(path[0][1]) >= float(params["wall_z_max"]) - 1e-9
+        ]
+        self.assertGreaterEqual(len(rim_paths), int(params["N"]))
+
+        starts = np.array([float(path[0][0]) % period for path in rim_paths])
+        starts.sort()
+        gaps = np.diff(np.concatenate([starts, starts[:1] + period]))
+        min_gap = float(params["W"]) + 1.5
+        self.assertGreaterEqual(float(gaps.min()), min_gap - 1e-6)
+
+        terminals = np.array([float(path[-1][1]) for path in rim_paths])
+        self.assertGreater(float(np.std(terminals)), 0.5)
+        self.assertGreater(float(np.ptp(terminals)), 0.5)
+
+    def test_thin_wall_model_manifold(self) -> None:
+        import kintsugi
+        import sample_models
+
+        builder = getattr(sample_models, "thin_cylinder", None)
+        self.assertIsNotNone(builder, "thin_cylinder preset builder is missing")
+        thin_manifold = builder()
+        thin_mesh = kintsugi.manifold_to_trimesh(thin_manifold)
+        with tempfile.TemporaryDirectory() as tmp:
+            input_path = Path(tmp) / "thin_cylinder.stl"
+            input_path.write_bytes(trimesh.exchange.stl.export_stl(thin_mesh))
+            result = kintsugi.generate_kintsugi_mesh(
+                input_path,
+                Path(tmp) / "out",
+                R=0.0,
+                mode="vein",
+                seed=0,
+                generator="growth",
+            )
+            self.assertIsNotNone(result["gold_path"])
+            for key in ("ceramic_path", "gold_path"):
+                mesh = trimesh.load(result[key], process=True)
+                self.assertTrue(mesh.is_watertight, key)
+                self.assertTrue(mesh.is_volume, key)
+                self.assertEqual(_bad_edge_count(mesh), 0, key)
+
+    def test_growth_tortuosity_floor(self) -> None:
+        import kintsugi
+
+        mesh, manifold = kintsugi.validate_and_load_mesh(self.bowl, 0.0)
+        for severity in (0.3, 0.6, 1.0):
+            medians = []
+            for seed in range(6):
+                params = kintsugi.compute_parameters(
+                    severity, mesh, manifold=manifold
+                )
+                paths = kintsugi.generate_crack_growth_paths(
+                    params, np.random.default_rng(seed)
+                )
+                stats = kintsugi.analyze_growth_paths(paths, params)
+                medians.append(float(stats["tortuosity_median"]))
+            with self.subTest(S=severity):
+                self.assertGreaterEqual(
+                    float(np.median(medians)),
+                    1.05,
+                    f"S={severity} tortuosity median {np.median(medians):.3f}",
+                )
+
+    # ------------------------------------------------------------------
     # PATCH-01 tests
     # ------------------------------------------------------------------
     def test_noise_field_gradient_bounded_and_no_crossings(self) -> None:
@@ -1071,7 +1233,9 @@ class KintsugiTestCase(unittest.TestCase):
         self.assertLessEqual(max_grad, 0.70 + 1e-6)
         for seed in range(10):
             paths = kintsugi.generate_crack_paths(
-                params, np.random.default_rng(seed)
+                params,
+                np.random.default_rng(seed),
+                generator="voronoi",
             )
             self.assertIsNone(
                 _first_crossing(paths, float(params["period"])),

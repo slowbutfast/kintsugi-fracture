@@ -37,11 +37,11 @@ The web GUI SHALL allow selecting bundled preset 3D models or uploading a custom
 - **THEN** job directories older than `KINTSUGI_JOB_TTL_S` (default 3600 s) are deleted, and at most `KINTSUGI_MAX_JOBS` (default 50) directories are retained, oldest first
 
 ### Requirement: Real-time parameter controls and fracture execution
-The web GUI SHALL provide interactive controls for income ratio $R$, fracture mode (`ribbon` vs `vein`), and seed, with asynchronous fracture execution and progress feedback.
+The web GUI SHALL provide interactive controls for income ratio $R$, fracture mode (`vein` vs `ribbon`), and seed, with asynchronous fracture execution and progress feedback. The default fracture mode SHALL be `vein` (Vein Inlay).
 
-#### Scenario: Triggering fracture computation
-- **WHEN** user sets $R = 0.35$ and clicks the green `⚡ FRACTURE MESH` button
-- **THEN** system displays a retro processing indicator, dispatches a `POST /api/fracture` request, updates the 3D viewport with the resulting ceramic and gold meshes upon completion, and displays computed volume metrics
+#### Scenario: Triggering fracture computation with vein default
+- **WHEN** user loads the application, sets $R = 0.35$, and clicks the green `⚡ FRACTURE MESH` button
+- **THEN** system dispatches a `POST /api/fracture` request defaulting to `mode: "vein"`, updates the 3D viewport with the resulting ceramic body and gold lightning veins upon completion, and displays computed volume metrics
 
 #### Scenario: Wealthy parameter setting
 - **WHEN** user sets $R \ge 1.0$

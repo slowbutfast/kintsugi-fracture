@@ -56,7 +56,13 @@ KNOWN_OPEN: dict[str, str] = {}
 
 PROFILES = {
     "quick": ["unit"],
-    "full": ["unit", "crack_graph_audit", "sweep", "noise_fold"],
+    "full": [
+        "unit",
+        "growth_audit",
+        "crack_graph_audit",
+        "sweep",
+        "noise_fold",
+    ],
 }
 
 
@@ -252,12 +258,34 @@ def run_crack_graph_audit(tmp: Path) -> dict:
             "duration_s": round(time.perf_counter() - started, 1), "rows": rows}
 
 
+def run_growth_audit(tmp: Path) -> dict:
+    out = tmp / "growth_audit.json"
+    started = time.perf_counter()
+    code, log = _run_tool(["tools/growth_audit.py", "--presets", "tea_bowl", "vase",
+                           "--severities", "0.6", "1.0",
+                           "--seeds", "300-499"], out)
+    if not out.exists():
+        return {"status": "error", "exit_code": code, "log_tail": log}
+    data = json.loads(out.read_text())
+    summary = data["summary"]
+    ok = bool(summary.get("ok")) and int(summary.get("errors", 0)) == 0
+    return {
+        "status": "pass" if ok else "fail",
+        "criteria": "0 crossings, 0 clearance violations, T-ratio >= 0.80, "
+                    "median tortuosity >= 1.05, 0 errors",
+        "duration_s": round(time.perf_counter() - started, 1),
+        "summary": summary,
+        "rows": data.get("rows", []),
+    }
+
+
 def run_sweep(tmp: Path) -> dict:
     out = tmp / "sweep.json"
     started = time.perf_counter()
     code, log = _run_tool(["tools/sweep_out_of_sample.py", "--presets", "tea_bowl", "vase",
                            "--ratios", "0.15", "0.3", "0.45", "0.65", "0.85",
                            "--modes", "ribbon", "vein",
+                           "--generator", "growth",
                            "--seeds", *[str(s) for s in range(500, 508)]], out)
     if not out.exists():
         return {"status": "error", "exit_code": code, "log_tail": log}
@@ -292,11 +320,38 @@ def run_noise_fold(tmp: Path) -> dict:
             "duration_s": round(time.perf_counter() - started, 1), "rows": rows}
 
 
+def run_renders(tmp: Path) -> dict:
+    """Render the 4 x 3 growth contact sheet into reports/contact_sheet.png."""
+    output = REPO / "reports" / "contact_sheet.png"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    started = time.perf_counter()
+    proc = subprocess.run(
+        [sys.executable, "tools/spike_contact_sheet.py", "--output", str(output)],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
+    log = (proc.stdout + proc.stderr)[-4000:]
+    sys.stderr.write(proc.stdout + proc.stderr)
+    ok = proc.returncode == 0 and output.exists() and output.stat().st_size > 0
+    return {
+        "status": "pass" if ok else "error",
+        "criteria": "12-panel contact sheet written to reports/contact_sheet.png",
+        "duration_s": round(time.perf_counter() - started, 1),
+        "path": output.relative_to(REPO).as_posix(),
+        "bytes": output.stat().st_size if output.exists() else 0,
+        "exit_code": proc.returncode,
+        "log_tail": log,
+    }
+
+
 RUNNERS = {
     "unit": lambda tmp: run_unit(),
+    "growth_audit": run_growth_audit,
     "crack_graph_audit": run_crack_graph_audit,
     "sweep": run_sweep,
     "noise_fold": run_noise_fold,
+    "renders": run_renders,
 }
 
 
@@ -314,6 +369,19 @@ def _suite_line(name: str, suite: dict) -> str:
         return (f"suite unit: {status} ran={suite['ran']} passed={c['passed']} "
                 f"failed={c['failed']} errors={c['error']} skipped={c['skipped']} "
                 f"time={suite['duration_s']}s")
+    if name == "growth_audit":
+        if "summary" not in suite:
+            return f"suite growth_audit: ERROR exit={suite.get('exit_code')}"
+        s = suite["summary"]
+        return (f"suite growth_audit: {status} seeds={s['seeds_requested']} "
+                f"crossings={s['total_crossings']} "
+                f"clearance={s['total_clearance_violations']} "
+                f"T-ratio={s['t_junction_ratio']:.3f} "
+                f"tort={s['tortuosity_median']:.3f} "
+                f"errors={s['errors']} time={suite['duration_s']}s")
+    if name == "renders":
+        return (f"suite renders: {status} path={suite.get('path')} "
+                f"bytes={suite.get('bytes', 0)} time={suite['duration_s']}s")
     if name == "crack_graph_audit":
         r = suite["rows"]
         return (f"suite crack_graph_audit: {status} rows={len(r)} "
@@ -376,7 +444,9 @@ def summary_block(report: dict, path: Path | None) -> str:
 # Commands
 # ---------------------------------------------------------------------------
 def cmd_run(args) -> int:
-    suites = args.suites or PROFILES[args.profile]
+    suites = list(args.suites or PROFILES[args.profile])
+    if args.renders and "renders" not in suites:
+        suites.append("renders")
     env = environment()
     files = source_files()
     report = {
@@ -470,6 +540,11 @@ def main(argv=None) -> int:
     run = sub.add_parser("run", help="run suites on this machine and write a report")
     run.add_argument("--profile", choices=sorted(PROFILES), default="quick")
     run.add_argument("--suites", nargs="+", choices=sorted(RUNNERS))
+    run.add_argument(
+        "--renders",
+        action="store_true",
+        help="Also render reports/contact_sheet.png",
+    )
     run.set_defaults(func=cmd_run)
     check = sub.add_parser("check", help="check a pasted block or JSON report")
     check.add_argument("report", help="file path, or - for stdin")

@@ -124,7 +124,9 @@ def audit(preset, severity, seeds):
     with unittest.mock.patch.object(kintsugi, "_make_noise", _zero_noise):
         for seed in range(seeds):
             paths = kintsugi.generate_crack_paths(
-                dict(params), np.random.default_rng(seed)
+                dict(params),
+                np.random.default_rng(seed),
+                generator="voronoi",
             )
             if not paths:
                 fractions.append(0.0)

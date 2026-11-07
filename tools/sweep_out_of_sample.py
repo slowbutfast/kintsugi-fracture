@@ -69,6 +69,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--seeds", nargs="+", type=int, default=list(range(100, 108)))
     parser.add_argument(
+        "--generator",
+        choices=("growth", "voronoi"),
+        default="growth",
+        help="Crack generator (default: growth)",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=REPO / "output" / "verification" / "sweep_out_of_sample.json",
@@ -101,7 +107,12 @@ def main(argv: list[str] | None = None) -> int:
                         try:
                             started = time.perf_counter()
                             result = kintsugi.generate_kintsugi_mesh(
-                                preset_path, tmp, R=ratio, mode=mode, seed=seed
+                                preset_path,
+                                tmp,
+                                R=ratio,
+                                mode=mode,
+                                seed=seed,
+                                generator=args.generator,
                             )
                             outputs = [
                                 _bad(result[key])
@@ -146,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary = {
         "command": " ".join(sys.argv),
+        "generator": args.generator,
         "total": len(results),
         "counts": dict(res),
         "clean": res["ok"],

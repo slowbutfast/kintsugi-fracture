@@ -376,8 +376,9 @@ async function fracture() {
   } else {
     form.append("preset", preset);
   }
+  const modeInput = document.querySelector('input[name="mode"]:checked');
   form.append("R", ui.ratio.value);
-  form.append("mode", ui.mode.value);
+  form.append("mode", modeInput ? modeInput.value : "vein");
   form.append("seed", ui.seed.value || "7");
   if (ui.seamWidth.value !== "") {
     form.append("seam_width", ui.seamWidth.value);

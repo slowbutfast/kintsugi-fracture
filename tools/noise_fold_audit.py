@@ -76,7 +76,11 @@ def main(argv=None):
             crossing = [
                 seed for seed in range(start, stop)
                 if _has_crossing(
-                    kintsugi.generate_crack_paths(dict(params), np.random.default_rng(seed)),
+                    kintsugi.generate_crack_paths(
+                        dict(params),
+                        np.random.default_rng(seed),
+                        generator="voronoi",
+                    ),
                     float(params["period"]),
                 )
             ]

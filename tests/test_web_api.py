@@ -76,6 +76,16 @@ class WebApiTestCase(unittest.TestCase):
             self.assertEqual(asset.status_code, 200, key)
             self.assertGreater(len(asset.content), 0, key)
 
+    def test_api_fracture_defaults_to_vein_growth(self) -> None:
+        response = self.client.post(
+            "/api/fracture",
+            data={"preset": "tea_bowl", "R": "0.5", "seed": "7"},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["parameters"]["mode"], "vein")
+        self.assertEqual(body["parameters"]["generator"], "growth")
+
     def test_api_fracture_wealthy(self) -> None:
         response = self.client.post(
             "/api/fracture",

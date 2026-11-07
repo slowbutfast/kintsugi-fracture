@@ -48,6 +48,30 @@ def small_vase(circular_segments: int = 96) -> mf.Manifold:
     )
 
 
+def thin_cylinder(circular_segments: int = 96) -> mf.Manifold:
+    """Cylinder with a 1.2 mm wall tapering to 0.7 mm at the rim.
+
+    The 50 x 50 x 70 mm vessel deliberately exercises the sub-0.25 mm vein
+    cutter omission band: the upper wall cannot hold the 0.8 mm backing rule.
+    """
+    profile = [
+        (0.0, 0.0),
+        (25.0, 0.0),
+        (25.0, 70.0),
+        (24.3, 70.0),
+        (23.8, 3.0),
+        (0.0, 3.0),
+    ]
+    return mf.Manifold.revolve(
+        mf.CrossSection([profile]), circular_segments=circular_segments
+    )
+
+
+def create_thin_cylinder_preset(circular_segments: int = 96) -> mf.Manifold:
+    """Compatibility alias for the synthetic thin-wall preset builder."""
+    return thin_cylinder(circular_segments)
+
+
 def benchy_style_boat() -> mf.Manifold:
     """A deliberately non-vessel boat/cabin shape used to demonstrate rejection."""
     hull = mf.Manifold.hull_points(
@@ -88,6 +112,12 @@ PRESETS = [
         "description": "Tapered 70 mm vase with a 2.5 mm wall.",
         "filename": "vase.stl",
     },
+    {
+        "id": "thin_cylinder",
+        "name": "Thin-Wall Cylinder",
+        "description": "70 mm cylinder with a 1.2 mm wall tapering to 0.7 mm.",
+        "filename": "thin_cylinder.stl",
+    },
 ]
 
 
@@ -95,6 +125,7 @@ _BUILDERS = {
     "tea_bowl": tea_bowl,
     "benchy": benchy_style_boat,
     "vase": small_vase,
+    "thin_cylinder": thin_cylinder,
 }
 
 

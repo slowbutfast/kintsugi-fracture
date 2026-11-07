@@ -63,11 +63,17 @@
 
           <section class="panel">
             <h2 class="panel-title">Fracture Controls</h2>
-            <label class="field-label" for="mode-select">Mode</label>
-            <select class="xp-select" id="mode-select">
-              <option value="ribbon">Ribbon — through-wall seams</option>
-              <option value="vein">Vein — surface inlay</option>
-            </select>
+            <fieldset class="radio-group" id="mode-select" tabindex="0" aria-label="Fracture mode">
+              <legend class="field-label">Mode</legend>
+              <label class="radio-option">
+                <input type="radio" name="mode" value="vein" checked />
+                <span>Vein Inlay — surface gold</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="mode" value="ribbon" />
+                <span>Ribbon Cut — through-wall seams</span>
+              </label>
+            </fieldset>
 
             <label class="field-label" for="seed-input">Seed</label>
             <input class="xp-input" id="seed-input" type="number" min="0" step="1" value="7" />

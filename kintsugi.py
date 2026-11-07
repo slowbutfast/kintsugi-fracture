@@ -24,6 +24,7 @@ import json
 import math
 import time
 import zipfile
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -32,7 +33,7 @@ from xml.etree import ElementTree as ET
 import manifold3d as mf
 import numpy as np
 import trimesh
-from scipy.spatial import Voronoi
+from scipy.spatial import Voronoi, cKDTree
 
 __all__ = [
     "compute_severity",
@@ -42,6 +43,9 @@ __all__ = [
     "manifold_to_trimesh",
     "generate_kintsugi_mesh",
     "generate_crack_paths",
+    "generate_crack_growth_paths",
+    "generate_crack_voronoi_paths",
+    "analyze_growth_paths",
     "project_crack_paths",
     "build_vein_cutter",
     "build_ribbon_cutter",
@@ -716,13 +720,1136 @@ def _truncate_polyline_z(
     return result
 
 
-def generate_crack_paths(
+# ---------------------------------------------------------------------------
+# Sequential rim-seeded crack growth generator
+# ---------------------------------------------------------------------------
+GROWTH_CLEARANCE_MM = 0.8
+GROWTH_MIN_INCIDENCE_DEG = 30.0
+GROWTH_MIN_DEPTH_MM = 0.25
+_GROWTH_DOWN = -0.5 * math.pi
+_GROWTH_MIN_HEADING = _GROWTH_DOWN - math.pi / 3.0
+_GROWTH_MAX_HEADING = _GROWTH_DOWN + math.pi / 3.0
+
+
+@dataclass
+class _GrowthTask:
+    """Mutable cursor for one FIFO crack-growth front."""
+
+    path_id: int
+    heading: float
+    traveled: float
+    z_limit: float
+    budget: float
+    level: int
+    exempt_path_id: int | None = None
+    exempt_origin: np.ndarray | None = None
+    branch_spawned: bool = False
+    branch_at: int | None = None
+    steps: int = 0
+
+
+def _clamp_heading(heading: float) -> float:
+    return min(max(float(heading), _GROWTH_MIN_HEADING), _GROWTH_MAX_HEADING)
+
+
+def _circular_distance(u: float, v: float, period: float) -> float:
+    delta = abs(float(u) - float(v)) % period
+    return min(delta, period - delta)
+
+
+def _periodic_distance(p, q, period: float) -> float:
+    du = abs(float(p[0]) - float(q[0])) % period
+    du = min(du, period - du)
+    return math.hypot(du, float(p[1]) - float(q[1]))
+
+
+def _poisson_rim_seeds(
+    count: int, period: float, min_sep: float, rng: np.random.Generator
+) -> list[float]:
+    """Draw ``count`` rim angles with a hard circular Poisson separation."""
+    if count <= 0:
+        return []
+    if count * min_sep >= period:
+        min_sep = period / (count + 1.0)
+    seeds: list[float] = []
+    attempts = 0
+    limit = max(2000, count * 300)
+    while len(seeds) < count and attempts < limit:
+        candidate = float(rng.uniform(0.0, period))
+        if all(_circular_distance(candidate, other, period) >= min_sep for other in seeds):
+            seeds.append(candidate)
+        attempts += 1
+    while len(seeds) < count:
+        if not seeds:
+            seeds.append(0.0)
+            continue
+        ordered = sorted(seeds)
+        best_index = 0
+        best_gap = -1.0
+        for index, value in enumerate(ordered):
+            following = ordered[(index + 1) % len(ordered)]
+            gap = (following - value) % period
+            if gap > best_gap:
+                best_gap = gap
+                best_index = index
+        seeds.append(
+            (ordered[best_index] + 0.5 * best_gap) % period
+        )
+    return [float(value) for value in seeds[:count]]
+
+
+def _unwrap_growth_segment(a, b, period: float) -> tuple[np.ndarray, np.ndarray]:
+    first = np.asarray(a, dtype=np.float64).copy()
+    second = np.asarray(b, dtype=np.float64).copy()
+    delta = float(second[0] - first[0])
+    if delta > 0.5 * period:
+        second[0] -= period
+    elif delta < -0.5 * period:
+        second[0] += period
+    return first, second
+
+
+def _project_point_on_segment(p, a, b) -> tuple[float, np.ndarray]:
+    ab = b - a
+    denom = float(np.dot(ab, ab))
+    if denom < 1e-18:
+        return 0.0, a.copy()
+    t = float(np.dot(p - a, ab) / denom)
+    t = min(max(t, 0.0), 1.0)
+    return t, a + t * ab
+
+
+def _point_segment_distance(p, a, b) -> tuple[float, float, np.ndarray]:
+    t, q = _project_point_on_segment(p, a, b)
+    return float(np.linalg.norm(p - q)), t, q
+
+
+def _segment_contact(a, b, c, d) -> tuple[float, float, float, np.ndarray]:
+    """Closest/intersection contact from candidate ``ab`` onto segment ``cd``.
+
+    Returns ``(distance, t_on_ab, u_on_cd, contact_on_cd)``.
+    """
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    c = np.asarray(c, dtype=np.float64)
+    d = np.asarray(d, dtype=np.float64)
+    r = b - a
+    s = d - c
+    ca = c - a
+    denom = float(r[0] * s[1] - r[1] * s[0])
+    if abs(denom) > 1e-12:
+        t = float((ca[0] * s[1] - ca[1] * s[0]) / denom)
+        u = float((ca[0] * r[1] - ca[1] * r[0]) / denom)
+        if -1e-9 <= t <= 1.0 + 1e-9 and -1e-9 <= u <= 1.0 + 1e-9:
+            t = min(max(t, 0.0), 1.0)
+            u = min(max(u, 0.0), 1.0)
+            return 0.0, t, u, c + u * s
+
+    best_distance = math.inf
+    best_t = 1.0
+    best_u = 0.0
+    best_point = c.copy()
+
+    u_start, q_start = _project_point_on_segment(a, c, d)
+    distance = float(np.linalg.norm(a - q_start))
+    if distance < best_distance:
+        best_distance, best_t, best_u, best_point = distance, 0.0, u_start, q_start
+
+    u_end, q_end = _project_point_on_segment(b, c, d)
+    distance = float(np.linalg.norm(b - q_end))
+    if distance < best_distance:
+        best_distance, best_t, best_u, best_point = distance, 1.0, u_end, q_end
+
+    t_start, q_start = _project_point_on_segment(c, a, b)
+    distance = float(np.linalg.norm(c - q_start))
+    if distance < best_distance:
+        best_distance, best_t, best_u, best_point = distance, t_start, 0.0, c.copy()
+
+    t_end, q_end = _project_point_on_segment(d, a, b)
+    distance = float(np.linalg.norm(d - q_end))
+    if distance < best_distance:
+        best_distance, best_t, best_u, best_point = distance, t_end, 1.0, d.copy()
+
+    return best_distance, best_t, best_u, best_point
+
+
+def _acute_angle_deg(first, second) -> float:
+    a = np.asarray(first, dtype=np.float64)
+    b = np.asarray(second, dtype=np.float64)
+    norm_a = float(np.linalg.norm(a))
+    norm_b = float(np.linalg.norm(b))
+    if norm_a < 1e-12 or norm_b < 1e-12:
+        return 0.0
+    cosine = abs(float(np.dot(a, b)) / (norm_a * norm_b))
+    return math.degrees(math.acos(min(max(cosine, -1.0), 1.0)))
+
+
+def _segment_outside_circle(
+    first: np.ndarray,
+    second: np.ndarray,
+    center: np.ndarray,
+    radius: float,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Return the portions of a segment outside a circular exemption zone."""
+    first = np.asarray(first, dtype=np.float64)
+    second = np.asarray(second, dtype=np.float64)
+    center = np.asarray(center, dtype=np.float64)
+    vector = second - first
+    length_sq = float(np.dot(vector, vector))
+    if length_sq < 1e-18:
+        if float(np.linalg.norm(first - center)) <= radius:
+            return []
+        return [(first.copy(), second.copy())]
+
+    offset = first - center
+    quadratic_b = 2.0 * float(np.dot(offset, vector))
+    quadratic_c = float(np.dot(offset, offset)) - radius * radius
+    discriminant = quadratic_b * quadratic_b - 4.0 * length_sq * quadratic_c
+    inside_first = float(np.linalg.norm(first - center)) <= radius
+    if discriminant <= 0.0:
+        return [] if inside_first else [(first.copy(), second.copy())]
+
+    root = math.sqrt(discriminant)
+    t_low = (-quadratic_b - root) / (2.0 * length_sq)
+    t_high = (-quadratic_b + root) / (2.0 * length_sq)
+    if t_low > t_high:
+        t_low, t_high = t_high, t_low
+    lower = max(0.0, t_low)
+    upper = min(1.0, t_high)
+    if upper <= lower:
+        return [] if inside_first else [(first.copy(), second.copy())]
+    pieces: list[tuple[np.ndarray, np.ndarray]] = []
+    if lower > 1e-9:
+        pieces.append((first.copy(), first + vector * lower))
+    if upper < 1.0 - 1e-9:
+        pieces.append((first + vector * upper, second.copy()))
+    return pieces
+
+
+def _first_growth_collision(
+    paths: Sequence[Sequence[np.ndarray]],
+    path_id: int,
+    a: np.ndarray,
+    b: np.ndarray,
+    *,
+    period: float,
+    r_clear: float,
+    exempt_path_id: int | None = None,
+    exempt_origin: np.ndarray | None = None,
+    exempt_radius: float = 0.0,
+) -> dict | None:
+    """Return the earliest clearance contact along ``a -> b``, or ``None``."""
+    best: dict | None = None
+    midpoint = 0.5 * (np.asarray(a) + np.asarray(b))
+    for other_id, points in enumerate(paths):
+        count = len(points)
+        if count < 2:
+            continue
+        for segment_index in range(count - 1):
+            if other_id == path_id and segment_index == count - 2:
+                continue
+            c = np.asarray(points[segment_index], dtype=np.float64)
+            d = np.asarray(points[segment_index + 1], dtype=np.float64)
+
+            shift = round(
+                (float(midpoint[0]) - 0.5 * float(c[0] + d[0])) / period
+            ) * period
+            shifted_c = c + np.array([shift, 0.0])
+            shifted_d = d + np.array([shift, 0.0])
+            full = shifted_d - shifted_c
+            full_length_sq = float(np.dot(full, full))
+            if full_length_sq < 1e-18:
+                continue
+
+            if (
+                exempt_path_id is not None
+                and other_id == exempt_path_id
+                and exempt_origin is not None
+            ):
+                full_distance, full_t, _, _ = _segment_contact(
+                    a, b, shifted_c, shifted_d
+                )
+                if full_distance <= 1e-7 and full_t > 1e-6:
+                    # The exemption zone forgives proximity, never a real
+                    # crossing of the parent crack away from the shared origin.
+                    subsegments = [(shifted_c, shifted_d)]
+                else:
+                    subsegments = _segment_outside_circle(
+                        shifted_c,
+                        shifted_d,
+                        exempt_origin,
+                        exempt_radius,
+                    )
+            else:
+                subsegments = [(shifted_c, shifted_d)]
+            if not subsegments:
+                continue
+
+            for sub_c, sub_d in subsegments:
+                distance, candidate_t, _, contact = _segment_contact(
+                    a, b, sub_c, sub_d
+                )
+                if distance > r_clear + 1e-9:
+                    continue
+                contact_u = float(
+                    np.dot(contact - shifted_c, full) / full_length_sq
+                )
+                contact_u = min(max(contact_u, 0.0), 1.0)
+                tangent = full
+                if float(np.linalg.norm(tangent)) < 1e-12:
+                    continue
+                free_end = (
+                    (contact_u <= 1e-6 and segment_index == 0)
+                    or (
+                        contact_u >= 1.0 - 1e-6
+                        and segment_index == count - 2
+                    )
+                )
+                record = {
+                    "distance": distance,
+                    "t": candidate_t,
+                    "path_id": other_id,
+                    "segment_index": segment_index,
+                    "hit": contact.copy(),
+                    "hit_local": contact - np.array([shift, 0.0]),
+                    "tangent": tangent,
+                    "free_end": free_end,
+                }
+                if (
+                    best is None
+                    or record["t"] < best["t"] - 1e-12
+                    or (
+                        abs(record["t"] - best["t"]) <= 1e-12
+                        and record["distance"] < best["distance"]
+                    )
+                ):
+                    best = record
+    return best
+
+
+def _subdivide_path(
+    path: list[np.ndarray], segment_index: int, point: np.ndarray
+) -> None:
+    if segment_index < 0 or segment_index >= len(path) - 1:
+        return
+    point = np.asarray(point, dtype=np.float64)
+    if float(np.linalg.norm(path[segment_index] - point)) <= 1e-9:
+        return
+    if float(np.linalg.norm(path[segment_index + 1] - point)) <= 1e-9:
+        return
+    path.insert(segment_index + 1, point.copy())
+
+
+def _probe_clearance(
+    point: np.ndarray, paths: Sequence[Sequence[np.ndarray]], period: float
+) -> float:
+    best = math.inf
+    for points in paths:
+        count = len(points)
+        if count < 2:
+            continue
+        for segment_index in range(count - 1):
+            c = np.asarray(points[segment_index], dtype=np.float64)
+            d = np.asarray(points[segment_index + 1], dtype=np.float64)
+            shift = round(
+                (float(point[0]) - 0.5 * float(c[0] + d[0])) / period
+            ) * period
+            distance, _, _ = _point_segment_distance(
+                point,
+                c + np.array([shift, 0.0]),
+                d + np.array([shift, 0.0]),
+            )
+            best = min(best, distance)
+    return best
+
+
+def _branch_heading(
+    origin: np.ndarray,
+    heading: float,
+    rng: np.random.Generator,
+    paths: Sequence[Sequence[np.ndarray]],
+    period: float,
+    r_clear: float,
+    outgoing_heading: float | None = None,
+) -> float | None:
+    angle = math.radians(float(rng.uniform(30.0, 45.0)))
+    signs = (-1.0, 1.0)
+    if outgoing_heading is not None:
+        turn = (float(outgoing_heading) - float(heading) + math.pi) % (
+            2.0 * math.pi
+        ) - math.pi
+        outward = -1.0 if turn > 0.0 else 1.0
+        signs = (outward, -outward)
+    options: list[tuple[float, float]] = []
+    for sign in signs:
+        candidate = float(heading) + sign * angle
+        if candidate < _GROWTH_MIN_HEADING - 1e-9:
+            continue
+        if candidate > _GROWTH_MAX_HEADING + 1e-9:
+            continue
+        probe = origin + np.array(
+            [math.cos(candidate), math.sin(candidate)], dtype=np.float64
+        ) * max(3.0 * r_clear, 1.0)
+        options.append((_probe_clearance(probe, paths, period), candidate))
+    if not options:
+        return None
+    options.sort(key=lambda item: item[0], reverse=True)
+    if len(options) > 1 and abs(options[0][0] - options[1][0]) < 1e-9:
+        return options[int(rng.integers(0, 2))][1]
+    return options[0][1]
+
+
+def _densify_growth_polyline(points: np.ndarray, step: float) -> np.ndarray:
+    points = np.asarray(points, dtype=np.float64)
+    if len(points) < 2:
+        return points.copy()
+    output: list[np.ndarray] = [points[0].copy()]
+    for first, second in zip(points[:-1], points[1:]):
+        length = float(np.linalg.norm(second - first))
+        count = max(1, int(math.ceil(length / max(step, 1e-9))))
+        for index in range(1, count + 1):
+            output.append(first + (second - first) * (index / count))
+    return np.asarray(output, dtype=np.float64)
+
+
+def generate_crack_growth_paths(
     params: dict,
     rng: np.random.Generator,
     *,
     subdivide_step: float | None = None,
 ) -> list[np.ndarray]:
-    """Generate perturbed crack polylines in unrolled ``(u, z)`` space."""
+    """Grow a rim-seeded crack network with stop-on-hit T-junctions.
+
+    The graph is built in unrolled ``(u, z)`` space.  Candidate segments are
+    tested against every committed segment, including periodic copies, and
+    snap to the earliest contact point when the arrival angle is at least 30
+    degrees.  The hit segment receives a shared vertex at the contact point.
+    """
+    period = float(params["period"])
+    W = max(float(params["W"]), MIN_SEAM_WIDTH_MM)
+    H = max(float(params["H"]), 1e-9)
+    severity = float(params.get("S", 0.0))
+    wall_z_max = float(params["wall_z_max"])
+    z_wall_lo = float(params["z_wall_lo"])
+    r_clear = W + GROWTH_CLEARANCE_MM
+    # u is arc length, so the angular rule Δθ >= (W + 1.5) / rbar becomes a
+    # minimum u separation of W + 1.5 millimetres.
+    min_separation_u = W + 1.5
+    count = max(int(params["N"]), 1)
+
+    seeds = _poisson_rim_seeds(count, period, min_separation_u, rng)
+    z_start = wall_z_max + 0.35 * W
+    paths: list[list[np.ndarray]] = []
+    tasks: deque[_GrowthTask] = deque()
+    junction_records: list[dict] = []
+    params["_growth_junctions"] = junction_records
+
+    stub_length = 0.5 * W
+    for u in seeds:
+        delta = float(rng.uniform(-0.15, 0.15))
+        z_limit = max(z_wall_lo, wall_z_max - H * (1.0 + delta))
+        heading = _clamp_heading(
+            _GROWTH_DOWN + math.radians(float(rng.uniform(-25.0, 25.0)))
+        )
+        start = np.array([u, z_start], dtype=np.float64)
+        # A short rim stub guarantees every one of the N(S) primary trunks
+        # survives filtering.  Adjacent seeds are separated by more than
+        # R_clear, so the stubs cannot collude near the lip.
+        stub = start + np.array([0.0, -stub_length], dtype=np.float64)
+        paths.append([start, stub])
+        budget = 1.2 * H
+        max_steps = max(2, int(math.ceil(budget / (1.5 * W))))
+        will_branch = float(rng.random()) < 0.15 * severity
+        branch_at = (
+            int(rng.integers(1, max_steps))
+            if will_branch and max_steps > 1
+            else None
+        )
+        tasks.append(
+            _GrowthTask(
+                path_id=len(paths) - 1,
+                heading=heading,
+                traveled=stub_length,
+                z_limit=z_limit,
+                budget=budget,
+                level=0,
+                branch_at=branch_at,
+                steps=1,
+            )
+        )
+
+    while tasks:
+        task = tasks.popleft()
+        path = paths[task.path_id]
+        start = path[-1].copy()
+        moved = False
+        terminal = False
+
+        max_attempts = (
+            1 if task.level == 1 and task.steps == 0 else 4
+        )
+        for attempt in range(max_attempts):
+            if attempt == 0 and task.steps == 0:
+                candidate_heading = _clamp_heading(task.heading)
+            else:
+                jitter_deg = 55.0 if attempt == 0 else 70.0
+                candidate_heading = _clamp_heading(
+                    task.heading
+                    + math.radians(
+                        float(rng.uniform(-jitter_deg, jitter_deg))
+                    )
+                )
+
+            remaining = task.budget - task.traveled
+            if remaining <= 1e-9:
+                terminal = True
+                break
+            step = min(float(rng.uniform(1.5 * W, 3.0 * W)), remaining)
+            if step < 0.35 * W:
+                terminal = True
+                break
+
+            candidate = start + np.array(
+                [math.cos(candidate_heading), math.sin(candidate_heading)],
+                dtype=np.float64,
+            ) * step
+
+            if candidate[1] < task.z_limit:
+                delta_z = float(candidate[1] - start[1])
+                if delta_z >= -1e-12:
+                    terminal = True
+                    break
+                t_limit = (task.z_limit - start[1]) / delta_z
+                if t_limit <= 1e-9:
+                    terminal = True
+                    break
+                candidate = start + t_limit * (candidate - start)
+                step = float(np.linalg.norm(candidate - start))
+                if step < 0.2 * W:
+                    terminal = True
+                    break
+
+            collision = _first_growth_collision(
+                paths,
+                task.path_id,
+                start,
+                candidate,
+                period=period,
+                r_clear=r_clear,
+                exempt_path_id=task.exempt_path_id,
+                exempt_origin=task.exempt_origin,
+                exempt_radius=(
+                    1.10 * r_clear / math.sin(math.radians(30.0))
+                    if task.exempt_path_id is not None
+                    else 0.0
+                ),
+            )
+
+            if collision is None:
+                path.append(candidate)
+                task.traveled += step
+                task.heading = candidate_heading
+                task.steps += 1
+                moved = True
+                if (
+                    candidate[1] <= task.z_limit + 1e-9
+                    or task.traveled >= task.budget - 1e-9
+                ):
+                    terminal = True
+                break
+
+            if collision["free_end"]:
+                # A free crack end has no segment to subdivide; resampling
+                # avoids a head-on T-T pairing that would read as a Y node.
+                continue
+            if collision["distance"] > 1e-7:
+                # A proximity near-miss has no point on the hit segment that
+                # lies on the candidate travel vector.  Snapping to the
+                # closest point would invent a short oblique connector that
+                # can cross another crack, so resample instead.
+                continue
+
+            arrival = _acute_angle_deg(
+                collision["hit"] - start, collision["tangent"]
+            )
+            if arrival >= GROWTH_MIN_INCIDENCE_DEG - 1e-9:
+                if float(np.linalg.norm(collision["hit"] - start)) > 1e-9:
+                    path.append(collision["hit"].copy())
+                    task.traveled += float(
+                        np.linalg.norm(collision["hit"] - start)
+                    )
+                junction_records.append(
+                    {
+                        "point": [
+                            float(collision["hit"][0] % period),
+                            float(collision["hit"][1]),
+                        ],
+                        "kind": "T",
+                        "path": task.path_id,
+                        "parent": int(collision["path_id"]),
+                        "angle": float(arrival),
+                        "parent_kink_deg": 0.0,
+                    }
+                )
+                _subdivide_path(
+                    paths[collision["path_id"]],
+                    int(collision["segment_index"]),
+                    collision["hit_local"],
+                )
+                moved = True
+                terminal = True
+                break
+            # Grazing approach: resample the heading up to three more times.
+
+        if (
+            moved
+            and not terminal
+            and task.level == 0
+            and not task.branch_spawned
+            and task.branch_at is not None
+            and task.steps >= task.branch_at
+            and len(path) >= 3
+        ):
+            origin = path[-2].copy()
+            incoming = path[-2] - path[-3]
+            outgoing = path[-1] - path[-2]
+            incoming_heading = math.atan2(
+                float(incoming[1]), float(incoming[0])
+            )
+            outgoing_heading = math.atan2(
+                float(outgoing[1]), float(outgoing[0])
+            )
+            kink = abs(
+                (incoming_heading - outgoing_heading + math.pi)
+                % (2.0 * math.pi)
+                - math.pi
+            )
+            if (
+                kink <= math.radians(39.0)
+                and origin[1] < wall_z_max - 0.5 * W
+            ):
+                branch_heading = _branch_heading(
+                    origin,
+                    incoming_heading,
+                    rng,
+                    paths,
+                    period,
+                    r_clear,
+                    outgoing_heading=outgoing_heading,
+                )
+                if branch_heading is not None:
+                    paths.append([origin.copy()])
+                    departure = _acute_angle_deg(
+                        np.array(
+                            [
+                                math.cos(branch_heading),
+                                math.sin(branch_heading),
+                            ]
+                        ),
+                        np.array(
+                            [
+                                math.cos(incoming_heading),
+                                math.sin(incoming_heading),
+                            ]
+                        ),
+                    )
+                    junction_records.append(
+                        {
+                            "point": [
+                                float(origin[0] % period),
+                                float(origin[1]),
+                            ],
+                            "kind": "Y",
+                            "path": len(paths) - 1,
+                            "parent": task.path_id,
+                            "angle": float(departure),
+                            "parent_kink_deg": float(math.degrees(kink)),
+                        }
+                    )
+                    tasks.append(
+                        _GrowthTask(
+                            path_id=len(paths) - 1,
+                            heading=branch_heading,
+                            traveled=0.0,
+                            z_limit=task.z_limit,
+                            budget=0.5 * H,
+                            level=1,
+                            exempt_path_id=task.path_id,
+                            exempt_origin=origin.copy(),
+                        )
+                    )
+                    task.branch_spawned = True
+
+        if moved and not terminal:
+            tasks.append(task)
+
+    final_step = (
+        float(subdivide_step)
+        if subdivide_step is not None
+        else 0.5 * W
+    )
+    final_step = max(final_step, 1e-6)
+    result: list[np.ndarray] = []
+    index_mapping: dict[int, int] = {}
+    for old_index, path in enumerate(paths):
+        if len(path) < 2:
+            continue
+        dense = _densify_growth_polyline(np.asarray(path), final_step)
+        if len(dense) < 2:
+            continue
+        dense[:, 0] = np.mod(dense[:, 0], period)
+        index_mapping[old_index] = len(result)
+        result.append(dense)
+
+    remapped_records: list[dict] = []
+    for record in junction_records:
+        path_index = index_mapping.get(int(record["path"]))
+        if path_index is None:
+            continue
+        record = dict(record)
+        record["path"] = path_index
+        if record.get("parent") is not None:
+            record["parent"] = index_mapping.get(
+                int(record["parent"]), int(record["parent"])
+            )
+        remapped_records.append(record)
+    params["_growth_junctions"] = remapped_records
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Growth-graph audit helpers
+# ---------------------------------------------------------------------------
+def _growth_segments(
+    paths: Sequence[Sequence[np.ndarray]], period: float
+) -> list[dict]:
+    segments: list[dict] = []
+    for path_index, path in enumerate(paths):
+        points = np.asarray(path, dtype=np.float64)
+        for segment_index in range(len(points) - 1):
+            a, b = _unwrap_growth_segment(
+                points[segment_index], points[segment_index + 1], period
+            )
+            length = float(np.linalg.norm(b - a))
+            if length < 1e-12:
+                continue
+            segments.append(
+                {
+                    "path": path_index,
+                    "index": segment_index,
+                    "a": a,
+                    "b": b,
+                    "mid": 0.5 * (a + b),
+                    "length": length,
+                }
+            )
+    return segments
+
+
+def _point_segment_distance_periodic(
+    point: np.ndarray, segment: dict, period: float
+) -> tuple[float, float, np.ndarray]:
+    shift = round(
+        (float(point[0]) - float(segment["mid"][0])) / period
+    ) * period
+    return _point_segment_distance(
+        point,
+        segment["a"] + np.array([shift, 0.0]),
+        segment["b"] + np.array([shift, 0.0]),
+    )
+
+
+def _proper_crossing(a, b, c, d, eps: float = 1e-9) -> bool:
+    def orient(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+
+    o1 = orient(a, b, c)
+    o2 = orient(a, b, d)
+    o3 = orient(c, d, a)
+    o4 = orient(c, d, b)
+    return (
+        ((o1 > eps and o2 < -eps) or (o1 < -eps and o2 > eps))
+        and ((o3 > eps and o4 < -eps) or (o3 < -eps and o4 > eps))
+    )
+
+
+def _growth_junctions(
+    paths: Sequence[Sequence[np.ndarray]],
+    segments: Sequence[dict],
+    period: float,
+    tol: float = 1e-6,
+) -> list[dict]:
+    records: list[dict] = []
+    for path_index, path in enumerate(paths):
+        points = np.asarray(path, dtype=np.float64)
+        if len(points) < 2:
+            continue
+        for kind, endpoint_index in (("Y", 0), ("T", len(points) - 1)):
+            point = points[endpoint_index]
+            candidates: list[dict] = []
+            for segment in segments:
+                if segment["path"] == path_index:
+                    if endpoint_index == 0 and segment["index"] == 0:
+                        continue
+                    if (
+                        endpoint_index == len(points) - 1
+                        and segment["index"] == len(points) - 2
+                    ):
+                        continue
+                distance, _, _ = _point_segment_distance_periodic(
+                    point, segment, period
+                )
+                if distance <= tol:
+                    candidates.append(segment)
+            if not candidates:
+                continue
+
+            hit_segment = None
+            if kind == "Y":
+                # The departure angle is measured against the parent segment
+                # that arrives at the branch origin, not against a sibling
+                # segment that leaves it in a different direction.
+                for segment in candidates:
+                    if segment["path"] == path_index:
+                        continue
+                    if (
+                        _periodic_distance(point, segment["b"], period)
+                        <= tol * 10.0
+                    ):
+                        hit_segment = segment
+                        break
+            if hit_segment is None:
+                for segment in candidates:
+                    if segment["path"] != path_index:
+                        hit_segment = segment
+                        break
+            if hit_segment is None:
+                hit_segment = candidates[0]
+            if kind == "T":
+                tangent = point - points[-2]
+            else:
+                tangent = points[1] - point
+            hit_tangent = hit_segment["b"] - hit_segment["a"]
+            records.append(
+                {
+                    "point": np.mod(point, period),
+                    "kind": kind,
+                    "path": path_index,
+                    "angle": _acute_angle_deg(tangent, hit_tangent),
+                    "segment": hit_segment,
+                }
+            )
+
+    groups: list[dict] = []
+    for record in records:
+        group = None
+        for candidate in groups:
+            if (
+                _periodic_distance(record["point"], candidate["point"], period)
+                <= tol * 10.0
+            ):
+                group = candidate
+                break
+        if group is None:
+            groups.append({"point": record["point"].copy(), "records": [record]})
+        else:
+            group["records"].append(record)
+
+    for group in groups:
+        point = group["point"]
+        directions: list[np.ndarray] = []
+        for segment in segments:
+            for first, second in ((segment["a"], segment["b"]),):
+                shift = round(
+                    (float(point[0]) - float(segment["mid"][0])) / period
+                ) * period
+                shifted_first = first + np.array([shift, 0.0])
+                shifted_second = second + np.array([shift, 0.0])
+                if (
+                    _periodic_distance(
+                        point - np.array([shift, 0.0]), shifted_first, period
+                    )
+                    <= tol * 10.0
+                ):
+                    direction = shifted_second - shifted_first
+                elif (
+                    _periodic_distance(
+                        point - np.array([shift, 0.0]), shifted_second, period
+                    )
+                    <= tol * 10.0
+                ):
+                    direction = shifted_first - shifted_second
+                else:
+                    continue
+                norm = float(np.linalg.norm(direction))
+                if norm > 1e-12:
+                    directions.append(direction / norm)
+        max_angle = 0.0
+        for first_index, first in enumerate(directions):
+            for second in directions[first_index + 1 :]:
+                cosine = float(np.dot(first, second))
+                angle = math.degrees(
+                    math.acos(min(max(cosine, -1.0), 1.0))
+                )
+                max_angle = max(max_angle, angle)
+        group["max_angle_deg"] = max_angle
+        group["t_like"] = max_angle >= 140.0
+        group["incidence_deg"] = [
+            record["angle"]
+            for record in group["records"]
+            if record["kind"] == "T"
+        ]
+        group["departure_deg"] = [
+            record["angle"]
+            for record in group["records"]
+            if record["kind"] == "Y"
+        ]
+    return groups
+
+
+def _growth_junctions_from_metadata(
+    paths: Sequence[Sequence[np.ndarray]],
+    records: Sequence[dict],
+    period: float,
+    tol: float = 1e-6,
+) -> list[dict]:
+    """Group generation-time junction records into audit nodes."""
+    valid = [
+        record
+        for record in records
+        if 0 <= int(record["path"]) < len(paths)
+        and len(paths[int(record["path"])]) >= 2
+    ]
+    groups: list[dict] = []
+    for record in valid:
+        point = np.array(
+            [
+                float(record["point"][0]) % period,
+                float(record["point"][1]),
+            ],
+            dtype=np.float64,
+        )
+        group = None
+        for candidate in groups:
+            if _periodic_distance(point, candidate["point"], period) <= tol * 10.0:
+                group = candidate
+                break
+        if group is None:
+            groups.append({"point": point, "records": []})
+            group = groups[-1]
+        group["records"].append(record)
+
+    for group in groups:
+        t_like = False
+        incidence: list[float] = []
+        departure: list[float] = []
+        for record in group["records"]:
+            if record["kind"] == "T":
+                t_like = True
+                incidence.append(float(record["angle"]))
+            else:
+                if float(record.get("parent_kink_deg", 90.0)) <= 40.0:
+                    t_like = True
+                departure.append(float(record["angle"]))
+        group["t_like"] = t_like
+        group["max_angle_deg"] = 180.0 if t_like else 120.0
+        group["incidence_deg"] = incidence
+        group["departure_deg"] = departure
+    return groups
+
+
+def _tortuosity_values(
+    paths: Sequence[Sequence[np.ndarray]],
+    junctions: Sequence[dict],
+    period: float,
+) -> list[float]:
+    values: list[float] = []
+    for path in paths:
+        points = np.asarray(path, dtype=np.float64)
+        if len(points) < 2:
+            continue
+        unwrapped = points.copy()
+        unwrapped[:, 0] = _unwrap_u(points[:, 0], period)
+        split_indices = {0, len(points) - 1}
+        for junction in junctions:
+            for index, point in enumerate(points):
+                if _periodic_distance(point, junction["point"], period) <= 1e-6:
+                    split_indices.add(index)
+        ordered = sorted(split_indices)
+        for first_index, second_index in zip(ordered, ordered[1:]):
+            if second_index - first_index < 1:
+                continue
+            piece = unwrapped[first_index : second_index + 1]
+            if len(piece) < 2:
+                continue
+            chord = float(np.linalg.norm(piece[-1] - piece[0]))
+            if chord < 1e-9:
+                continue
+            arc = float(
+                np.sum(np.linalg.norm(np.diff(piece, axis=0), axis=1))
+            )
+            values.append(arc / chord)
+    return values
+
+
+def analyze_growth_paths(
+    paths: Sequence[Sequence[np.ndarray]], params: dict
+) -> dict:
+    """Measure planarity, clearance, junction and tortuosity invariants."""
+    period = float(params["period"])
+    W = float(params["W"])
+    r_clear = W + GROWTH_CLEARANCE_MM
+    # A 10% numeric margin covers the discrete geodesic offset between a
+    # branch and its parent at the nominal 30-degree exemption boundary.
+    r_exempt = 1.10 * r_clear / math.sin(math.radians(30.0))
+    segments = _growth_segments(paths, period)
+    metadata = params.get("_growth_junctions") or []
+    if metadata:
+        junctions = _growth_junctions_from_metadata(paths, metadata, period)
+    else:
+        junctions = _growth_junctions(paths, segments, period)
+    junction_points = [group["point"] for group in junctions]
+
+    crossings = 0
+    clearance_violations = 0
+    minimum_clearance = math.inf
+    shared_tol = 1e-6
+
+    pair_radius = r_clear + 2.0 * max(
+        (segment["length"] for segment in segments), default=0.0
+    ) + 1e-6
+    pair_indices: set[tuple[int, int]] = set()
+    if segments:
+        mids = np.asarray([segment["mid"] for segment in segments])
+        tiled = np.vstack(
+            [
+                mids + np.array([shift * period, 0.0])
+                for shift in (-1, 0, 1)
+            ]
+        )
+        tree = cKDTree(tiled)
+        for index, midpoint in enumerate(mids):
+            for neighbour in tree.query_ball_point(midpoint, pair_radius):
+                other = int(neighbour) % len(segments)
+                if other == index:
+                    continue
+                pair_indices.add((min(index, other), max(index, other)))
+
+    for first_index, second_index in sorted(pair_indices):
+        first = segments[first_index]
+        second = segments[second_index]
+        if first["path"] == second["path"]:
+            mean_step = max(
+                0.5 * (first["length"] + second["length"]), 1e-6
+            )
+            skip_span = 2 + int(math.ceil(r_clear / mean_step))
+            if abs(first["index"] - second["index"]) <= skip_span:
+                continue
+        shift = round(
+            (float(first["mid"][0]) - float(second["mid"][0])) / period
+        ) * period
+        c = second["a"] + np.array([shift, 0.0])
+        d = second["b"] + np.array([shift, 0.0])
+        distance, t_first, _, contact = _segment_contact(
+            first["a"], first["b"], c, d
+        )
+        first_contact = first["a"] + t_first * (first["b"] - first["a"])
+        shared = False
+        for point in (first["a"], first["b"]):
+            for other in (c, d):
+                if _periodic_distance(point, other, period) <= shared_tol:
+                    shared = True
+                    break
+            if shared:
+                break
+        if shared:
+            continue
+        if _proper_crossing(first["a"], first["b"], c, d):
+            crossings += 1
+        exempt = any(
+            min(
+                _periodic_distance(first_contact, junction_point, period),
+                _periodic_distance(contact, junction_point, period),
+            )
+            <= r_exempt
+            for junction_point in junction_points
+        )
+        if exempt:
+            continue
+        minimum_clearance = min(minimum_clearance, distance)
+        if distance < r_clear - shared_tol:
+            clearance_violations += 1
+
+    t_junctions = sum(1 for group in junctions if group["t_like"])
+    y_junctions = len(junctions) - t_junctions
+    incidence = [
+        angle
+        for group in junctions
+        for angle in group["incidence_deg"]
+    ]
+    departure = [
+        angle
+        for group in junctions
+        for angle in group["departure_deg"]
+    ]
+    tortuosity = _tortuosity_values(paths, junctions, period)
+
+    return {
+        "paths": len(paths),
+        "segments": len(segments),
+        "junctions": len(junctions),
+        "t_junctions": int(t_junctions),
+        "y_junctions": int(y_junctions),
+        "t_junction_ratio": (
+            float(t_junctions) / float(len(junctions))
+            if junctions
+            else 1.0
+        ),
+        "crossings": int(crossings),
+        "clearance_violations": int(clearance_violations),
+        "min_clearance": (
+            float(minimum_clearance)
+            if math.isfinite(minimum_clearance)
+            else None
+        ),
+        "min_incidence_deg": float(min(incidence)) if incidence else None,
+        "min_departure_deg": float(min(departure)) if departure else None,
+        "tortuosity_median": (
+            float(np.median(tortuosity)) if tortuosity else 0.0
+        ),
+        "tortuosity_p05": (
+            float(np.percentile(tortuosity, 5)) if tortuosity else 0.0
+        ),
+        "tortuosity_values": [float(value) for value in tortuosity],
+    }
+
+
+def generate_crack_paths(
+    params: dict,
+    rng: np.random.Generator,
+    *,
+    subdivide_step: float | None = None,
+    generator: str = "growth",
+) -> list[np.ndarray]:
+    """Drop-in generator seam: growth (default) or legacy Voronoi."""
+    if generator == "growth":
+        return generate_crack_growth_paths(
+            params, rng, subdivide_step=subdivide_step
+        )
+    if generator == "voronoi":
+        return generate_crack_voronoi_paths(
+            params, rng, subdivide_step=subdivide_step
+        )
+    raise ValueError("generator must be either 'growth' or 'voronoi'")
+
+
+def generate_crack_voronoi_paths(
+    params: dict,
+    rng: np.random.Generator,
+    *,
+    subdivide_step: float | None = None,
+) -> list[np.ndarray]:
+    """Legacy periodic-Voronoi crack generator in unrolled ``(u, z)`` space."""
     period = float(params["period"])
     z_min = float(params["z_min"])
     z_max = float(params["z_max"])
@@ -991,6 +2118,100 @@ def _batch_add(parts: Sequence[mf.Manifold]) -> mf.Manifold:
     return mf.Manifold.batch_boolean(parts, mf.OpType.Add)
 
 
+def _densify_projected_paths(
+    projected_paths: Sequence[Sequence[dict]], step: float
+) -> list[list[dict]]:
+    """Resample projected path points to a maximum spacing."""
+    densified: list[list[dict]] = []
+    for path in projected_paths:
+        if not path:
+            continue
+        if len(path) == 1:
+            densified.append([dict(point) for point in path])
+            continue
+        output: list[dict] = [dict(path[0])]
+        for first, second in zip(path[:-1], path[1:]):
+            p0 = np.asarray(first["p"], dtype=np.float64)
+            p1 = np.asarray(second["p"], dtype=np.float64)
+            length = float(np.linalg.norm(p1 - p0))
+            count = max(1, int(math.ceil(length / max(step, 1e-9))))
+            for index in range(1, count + 1):
+                fraction = index / count
+                p = p0 + (p1 - p0) * fraction
+                n = np.asarray(first["n"], dtype=np.float64) * (
+                    1.0 - fraction
+                ) + np.asarray(second["n"], dtype=np.float64) * fraction
+                norm = float(np.linalg.norm(n))
+                if norm < 1e-12:
+                    n = np.asarray(second["n"], dtype=np.float64)
+                else:
+                    n = n / norm
+                output.append(
+                    {
+                        "p": p,
+                        "n": n,
+                        "t": float(first["t"])
+                        + (float(second["t"]) - float(first["t"])) * fraction,
+                        "u": float(first.get("u", 0.0))
+                        + (float(second.get("u", 0.0)) - float(first.get("u", 0.0)))
+                        * fraction,
+                        "z": float(first.get("z", 0.0))
+                        + (float(second.get("z", 0.0)) - float(first.get("z", 0.0)))
+                        * fraction,
+                        "single_hit": bool(
+                            first.get("single_hit", False)
+                            and second.get("single_hit", False)
+                        ),
+                    }
+                )
+        densified.append(output)
+    return densified
+
+
+def _vein_point_groups(
+    projected_paths: Sequence[Sequence[dict]], W: float
+) -> list[list[dict]]:
+    """Split projected paths into printable runs with a legal vein depth.
+
+    Depth is ``d_i = min(0.75 W, 0.5 t_i, t_i - 0.8 mm)``.  Points whose depth
+    falls below ``0.25 mm`` are omitted, which splits the polyline and prevents
+    a cutter sphere from becoming tangent to the outer ceramic surface.
+    """
+    width = float(W)
+    radius = 0.5 * width
+    groups: list[list[dict]] = []
+    step = 0.5 * width
+    for path in _densify_projected_paths(projected_paths, step):
+        current: list[dict] = []
+        for point in path:
+            thickness = float(point["t"])
+            depth = min(
+                0.75 * width,
+                0.5 * thickness,
+                thickness - GROWTH_CLEARANCE_MM,
+            )
+            if depth < GROWTH_MIN_DEPTH_MM - 1e-9:
+                if current:
+                    groups.append(current)
+                    current = []
+                continue
+            center = np.asarray(point["p"], dtype=np.float64) - (
+                depth - radius
+            ) * np.asarray(point["n"], dtype=np.float64)
+            current.append(
+                {
+                    "p": np.asarray(point["p"], dtype=np.float64),
+                    "n": np.asarray(point["n"], dtype=np.float64),
+                    "t": thickness,
+                    "depth": float(depth),
+                    "center": center,
+                }
+            )
+        if current:
+            groups.append(current)
+    return groups
+
+
 def _build_vein_cutter(
     projected_paths: Sequence[Sequence[dict]],
     W: float,
@@ -1005,20 +2226,19 @@ def _build_vein_cutter(
     overlap (the path step is at most ``W/2`` and the radius is ``W/2``), so
     they are unioned directly; building convex hulls from already-overlapping
     spheres creates shared faces and kiss edges.  A hull is added only when a
-    consecutive-centre gap exceeds the sphere diameter.
+    consecutive-centre gap exceeds the sphere diameter.  Points whose vein
+    depth is below 0.25 mm are omitted by ``_vein_point_groups``, splitting the
+    cutter into independently manifold runs.
     """
     radius = 0.5 * float(W)
     sphere_cache: dict[tuple[float, float, float], tuple[mf.Manifold, np.ndarray]] = {}
     path_solids: list[mf.Manifold] = []
     global_gap_hulls: list[mf.Manifold] = []
 
-    for path in projected_paths:
-        if not path:
-            continue
+    for group in _vein_point_groups(projected_paths, W):
         spheres: list[tuple[mf.Manifold, np.ndarray, tuple[float, float, float]]] = []
-        for point in path:
-            depth = min(0.75 * float(W), 0.5 * float(point["t"]))
-            center = point["p"] - (depth - radius) * point["n"]
+        for point in group:
+            center = point["center"]
             key = (
                 round(float(center[0]), 6),
                 round(float(center[1]), 6),
@@ -1442,6 +2662,7 @@ def generate_kintsugi_mesh(
     seed: int = 42,
     seam_width: float | None = None,
     output_3mf_path: str | Path | None = None,
+    generator: str = "growth",
 ) -> dict:
     """Fracture a vessel mesh into a ceramic body and complementary gold seams.
 
@@ -1455,6 +2676,8 @@ def generate_kintsugi_mesh(
     severity = compute_severity(R)
     if mode not in ("vein", "ribbon"):
         raise ValueError("mode must be either 'vein' or 'ribbon'")
+    if generator not in ("growth", "voronoi"):
+        raise ValueError("generator must be either 'growth' or 'voronoi'")
     if seam_width is not None and float(seam_width) < MIN_SEAM_WIDTH_MM:
         raise ValueError(
             f"seam_width must be at least {MIN_SEAM_WIDTH_MM} mm, "
@@ -1478,6 +2701,7 @@ def generate_kintsugi_mesh(
         probe=validation.probe,
     )
     params["mode"] = mode
+    params["generator"] = generator
     params["seed"] = int(seed)
     timings["validate"] = time.perf_counter() - validate_started
 
@@ -1522,7 +2746,7 @@ def generate_kintsugi_mesh(
     rng = np.random.default_rng(int(seed))
 
     graph_started = time.perf_counter()
-    paths = generate_crack_paths(params, rng)
+    paths = generate_crack_paths(params, rng, generator=generator)
     timings["crack_graph"] = time.perf_counter() - graph_started
 
     projection_started = time.perf_counter()
@@ -1644,6 +2868,7 @@ def generate_kintsugi_mesh(
 
     ceramic_trimesh = ceramic_export_mesh
     gold_trimesh = gold_export_mesh
+    params.pop("_growth_junctions", None)
 
     return {
         "ceramic_path": str(ceramic_path),
@@ -1687,6 +2912,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Income ratio R; R >= 1.0 yields a pristine body",
     )
     parser.add_argument("--mode", choices=("vein", "ribbon"), default="ribbon")
+    parser.add_argument(
+        "--generator",
+        choices=("growth", "voronoi"),
+        default="growth",
+        help="Crack generator (growth is the default; voronoi is legacy)",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--seam-width", type=float, default=None)
     parser.add_argument(
@@ -1712,6 +2943,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed=args.seed,
         seam_width=args.seam_width,
         output_3mf_path=three_mf,
+        generator=args.generator,
     )
 
     if args.json:

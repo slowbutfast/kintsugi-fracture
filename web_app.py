@@ -159,9 +159,10 @@ def api_fracture(
     file: UploadFile | None = File(default=None),
     preset: str | None = Form(default=None),
     R: float = Form(default=0.5),
-    mode: str = Form(default="ribbon"),
+    mode: str = Form(default="vein"),
     seed: int = Form(default=42),
     seam_width: float | None = Form(default=None),
+    generator: str = Form(default="growth"),
 ) -> JSONResponse:
     job_id = uuid.uuid4().hex[:12]
     job_dir = OUTPUT_DIR / job_id
@@ -179,6 +180,7 @@ def api_fracture(
             seed=seed,
             seam_width=seam_width,
             output_3mf_path=three_mf,
+            generator=generator,
         )
     except ValueError as exc:
         # Remove the half-created job so failed runs do not leak assets.

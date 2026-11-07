@@ -56,7 +56,9 @@ def render_case(preset: str, S: float, seed: int, out: Path) -> Path:
     params = kintsugi.compute_parameters(S, mesh, manifold=manifold)
     with unittest.mock.patch.object(kintsugi, "_make_noise", _zero_noise):
         paths = kintsugi.generate_crack_paths(
-            params, np.random.default_rng(seed)
+            params,
+            np.random.default_rng(seed),
+            generator="voronoi",
         )
 
     period = float(params["period"])
