@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kintsugi Studio 2001</title>
+  <link rel="stylesheet" href="/xp.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="desktop">
+    <main class="window" id="studio-window" aria-label="Kintsugi Studio 2001">
+      <div class="titlebar" id="titlebar">
+        <div class="titlebar-icon" aria-hidden="true">◈</div>
+        <div class="titlebar-text">Kintsugi Studio 2001</div>
+        <div class="titlebar-controls">
+          <button class="titlebar-button" id="btn-minimize" type="button" aria-label="Minimize">_</button>
+          <button class="titlebar-button" id="btn-maximize" type="button" aria-label="Maximize">□</button>
+          <button class="titlebar-button close" id="btn-close" type="button" aria-label="Close">✕</button>
+        </div>
+      </div>
+
+      <nav class="menu-bar" aria-label="Application menu">
+        <button class="menu-item" type="button"><span>File</span><u>F</u></button>
+        <button class="menu-item" type="button" data-focus="preset-select"><span>Presets</span><u>P</u></button>
+        <button class="menu-item" type="button" data-focus="mode-select"><span>Mode</span><u>M</u></button>
+        <button class="menu-item" type="button" data-focus="ratio-slider"><span>Help</span><u>H</u></button>
+      </nav>
+
+      <div class="window-body">
+        <aside class="sidebar">
+          <section class="panel">
+            <h2 class="panel-title">Model Source</h2>
+            <label class="field-label" for="preset-select">Bundled preset</label>
+            <select class="xp-select" id="preset-select" aria-label="Bundled preset model">
+              <option value="">Loading presets…</option>
+            </select>
+
+            <div class="upload-zone" id="upload-zone" tabindex="0" role="button" aria-label="Upload a custom STL or OBJ">
+              <div class="upload-icon" aria-hidden="true">⇪</div>
+              <div class="upload-title">Drop a custom model</div>
+              <div class="upload-subtitle">.stl or .obj · watertight only</div>
+              <input type="file" id="file-input" accept=".stl,.obj" hidden />
+            </div>
+            <div class="field-note" id="model-note">No custom file selected.</div>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Inequality Metric</h2>
+            <div class="slider-row">
+              <input class="xp-slider" id="ratio-slider" type="range" min="0" max="2" step="0.01" value="0.5" />
+              <output class="slider-value" id="ratio-value" for="ratio-slider">R = 0.50</output>
+            </div>
+            <div class="metric-caption" id="ratio-caption">Moderate inequality</div>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Fracture Controls</h2>
+            <label class="field-label" for="mode-select">Mode</label>
+            <select class="xp-select" id="mode-select">
+              <option value="ribbon">Ribbon — through-wall seams</option>
+              <option value="vein">Vein — surface inlay</option>
+            </select>
+
+            <label class="field-label" for="seed-input">Seed</label>
+            <input class="xp-input" id="seed-input" type="number" min="0" step="1" value="7" />
+
+            <label class="field-label" for="seam-width-input">Seam width override (mm)</label>
+            <input class="xp-input" id="seam-width-input" type="number" min="0.8" step="0.05" placeholder="auto from R" />
+          </section>
+
+          <button class="action-button" id="fracture-button" type="button">
+            <span class="action-bolt" aria-hidden="true">⚡</span> FRACTURE MESH
+          </button>
+
+          <section class="panel downloads-panel">
+            <h2 class="panel-title">Slicer Assets</h2>
+            <a class="download-button disabled" id="download-ceramic" href="#" download>Ceramic body (.stl)</a>
+            <a class="download-button disabled" id="download-gold" href="#" download>Gold seams (.stl)</a>
+            <a class="download-button disabled" id="download-3mf" href="#" download>Kintsugi assembly (.3mf)</a>
+          </section>
+        </aside>
+
+        <section class="viewport-shell">
+          <div class="viewport-toolbar">
+            <span class="viewport-title">3D Inspection</span>
+            <span class="viewport-hint">Drag to orbit · Wheel to zoom · Right-drag to pan</span>
+          </div>
+          <div class="inset-well viewport-well">
+            <div id="viewport" class="viewport" aria-label="3D model viewport"></div>
+            <div class="processing-overlay" id="processing-overlay" hidden>
+              <div class="processing-box">
+                <div class="processing-spinner"></div>
+                <div>Computing Manifold3D booleans…</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="status-bar">
+        <div class="status-cell status-grow" id="status-operation">Ready</div>
+        <div class="status-cell" id="status-mesh">Faces: — | Watertight: —</div>
+        <div class="status-cell" id="status-kernel">Kernel: Manifold3D v3.5</div>
+      </footer>
+    </main>
+  </div>
+
+  <script type="module" src="/viewer.js"></script>
+</body>
+</html>

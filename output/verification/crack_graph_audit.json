@@ -1,0 +1,46 @@
+[
+  {
+    "preset": "tea_bowl",
+    "S": 0.6,
+    "seeds": 200,
+    "phantom_seeds": 0,
+    "phantom_examples": [],
+    "crossing_seeds": 0,
+    "crossing_examples": [],
+    "clamp_line_fraction_mean": 0.0,
+    "clamp_line_fraction_max": 0.0
+  },
+  {
+    "preset": "tea_bowl",
+    "S": 1.0,
+    "seeds": 200,
+    "phantom_seeds": 0,
+    "phantom_examples": [],
+    "crossing_seeds": 0,
+    "crossing_examples": [],
+    "clamp_line_fraction_mean": 0.0,
+    "clamp_line_fraction_max": 0.0
+  },
+  {
+    "preset": "vase",
+    "S": 0.6,
+    "seeds": 200,
+    "phantom_seeds": 0,
+    "phantom_examples": [],
+    "crossing_seeds": 0,
+    "crossing_examples": [],
+    "clamp_line_fraction_mean": 0.0,
+    "clamp_line_fraction_max": 0.0
+  },
+  {
+    "preset": "vase",
+    "S": 1.0,
+    "seeds": 200,
+    "phantom_seeds": 0,
+    "phantom_examples": [],
+    "crossing_seeds": 0,
+    "crossing_examples": [],
+    "clamp_line_fraction_mean": 0.0,
+    "clamp_line_fraction_max": 0.0
+  }
+]

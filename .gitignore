@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Runtime and scratch outputs (MD5s of determinism runs are recorded in verification.md)
+output/web/
+output/cli_demo/
+output/determinism_*/
+output/round3_det_*/
+
+# Local agent tooling
+.agent/
+.claude/
+.codex/
+.opencode/
+
+# Environment
+.env
+.env.*

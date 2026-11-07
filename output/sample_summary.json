@@ -1,0 +1,190 @@
+[
+  {
+    "label": "bowl_R1.0_ribbon",
+    "R": 1.0,
+    "mode": "ribbon",
+    "num_cracks": 0,
+    "seam_width_mm": 0.8,
+    "band_height_mm": 12.0,
+    "volumes_mm3": {
+      "input": 65775.65785153286,
+      "ceramic": 65775.65785153286,
+      "gold": 0.0,
+      "pre_swap_ceramic": 65775.65785153286,
+      "pre_swap_gold": 0.0
+    },
+    "triangle_counts": {
+      "ceramic": 768,
+      "gold": 0
+    },
+    "timings_s": {
+      "validate": 0.11592309828847647,
+      "export": 0.01373620331287384,
+      "total": 0.12973398342728615
+    },
+    "wall_clock_s": 0.12980166357010603,
+    "ceramic_path": "output/bowl_R1.0_ribbon/ceramic_body.stl",
+    "gold_path": null,
+    "three_mf_path": "output/bowl_R1.0_ribbon.3mf"
+  },
+  {
+    "label": "bowl_R1.0_vein",
+    "R": 1.0,
+    "mode": "vein",
+    "num_cracks": 0,
+    "seam_width_mm": 0.8,
+    "band_height_mm": 12.0,
+    "volumes_mm3": {
+      "input": 65775.65785153286,
+      "ceramic": 65775.65785153286,
+      "gold": 0.0,
+      "pre_swap_ceramic": 65775.65785153286,
+      "pre_swap_gold": 0.0
+    },
+    "triangle_counts": {
+      "ceramic": 768,
+      "gold": 0
+    },
+    "timings_s": {
+      "validate": 0.11519989650696516,
+      "export": 0.01247459463775158,
+      "total": 0.1277686906978488
+    },
+    "wall_clock_s": 0.12783921044319868,
+    "ceramic_path": "output/bowl_R1.0_vein/ceramic_body.stl",
+    "gold_path": null,
+    "three_mf_path": "output/bowl_R1.0_vein.3mf"
+  },
+  {
+    "label": "bowl_R0.7_ribbon",
+    "R": 0.7,
+    "mode": "ribbon",
+    "num_cracks": 4,
+    "seam_width_mm": 1.2200000000000002,
+    "band_height_mm": 26.400000000000002,
+    "volumes_mm3": {
+      "input": 65775.65785153286,
+      "ceramic": 65126.97895792502,
+      "gold": 648.6788936078366,
+      "pre_swap_ceramic": 65126.97895792502,
+      "pre_swap_gold": 648.6788936078366
+    },
+    "triangle_counts": {
+      "ceramic": 3588,
+      "gold": 2804
+    },
+    "timings_s": {
+      "validate": 0.11569505836814642,
+      "crack_graph": 0.005245671607553959,
+      "projection": 0.00596583541482687,
+      "cutter": 0.032823238521814346,
+      "csg": 0.06711160484701395,
+      "debris_swap": 0.04571655672043562,
+      "export": 0.0734636839479208,
+      "total": 0.3934692954644561
+    },
+    "wall_clock_s": 0.3944021398201585,
+    "ceramic_path": "output/bowl_R0.7_ribbon/ceramic_body.stl",
+    "gold_path": "output/bowl_R0.7_ribbon/gold_seams.stl",
+    "three_mf_path": "output/bowl_R0.7_ribbon.3mf"
+  },
+  {
+    "label": "bowl_R0.7_vein",
+    "R": 0.7,
+    "mode": "vein",
+    "num_cracks": 4,
+    "seam_width_mm": 1.2200000000000002,
+    "band_height_mm": 26.400000000000002,
+    "volumes_mm3": {
+      "input": 65775.65785153286,
+      "ceramic": 65622.89936079318,
+      "gold": 152.7584907396813,
+      "pre_swap_ceramic": 65622.89936079318,
+      "pre_swap_gold": 152.7584907396813
+    },
+    "triangle_counts": {
+      "ceramic": 22176,
+      "gold": 21330
+    },
+    "timings_s": {
+      "validate": 0.11499689426273108,
+      "crack_graph": 0.004973909817636013,
+      "projection": 0.0059593962505459785,
+      "cutter": 0.3578601200133562,
+      "csg": 0.2345796562731266,
+      "debris_swap": 0.2019628994166851,
+      "export": 0.5744699081405997,
+      "total": 1.8197673838585615
+    },
+    "wall_clock_s": 1.8213769933208823,
+    "ceramic_path": "output/bowl_R0.7_vein/ceramic_body.stl",
+    "gold_path": "output/bowl_R0.7_vein/gold_seams.stl",
+    "three_mf_path": "output/bowl_R0.7_vein.3mf"
+  },
+  {
+    "label": "bowl_R0.2_ribbon",
+    "R": 0.2,
+    "mode": "ribbon",
+    "num_cracks": 12,
+    "seam_width_mm": 1.92,
+    "band_height_mm": 50.400000000000006,
+    "volumes_mm3": {
+      "input": 65775.65785153286,
+      "ceramic": 62521.334761972816,
+      "gold": 3254.3230895600445,
+      "pre_swap_ceramic": 62521.334761972816,
+      "pre_swap_gold": 3254.3230895600445
+    },
+    "triangle_counts": {
+      "ceramic": 7152,
+      "gold": 6334
+    },
+    "timings_s": {
+      "validate": 0.11525713559240103,
+      "crack_graph": 0.010021700523793697,
+      "projection": 0.012212113477289677,
+      "cutter": 0.07395668607205153,
+      "csg": 0.14243029989302158,
+      "debris_swap": 0.055981338024139404,
+      "export": 0.15609170217067003,
+      "total": 0.6700701238587499
+    },
+    "wall_clock_s": 0.6711972113698721,
+    "ceramic_path": "output/bowl_R0.2_ribbon/ceramic_body.stl",
+    "gold_path": "output/bowl_R0.2_ribbon/gold_seams.stl",
+    "three_mf_path": "output/bowl_R0.2_ribbon.3mf"
+  },
+  {
+    "label": "bowl_R0.2_vein",
+    "R": 0.2,
+    "mode": "vein",
+    "num_cracks": 12,
+    "seam_width_mm": 1.92,
+    "band_height_mm": 50.400000000000006,
+    "volumes_mm3": {
+      "input": 65775.65785153286,
+      "ceramic": 64589.44011839322,
+      "gold": 1186.2177331396372,
+      "pre_swap_ceramic": 64589.44011839322,
+      "pre_swap_gold": 1186.2177331396372
+    },
+    "triangle_counts": {
+      "ceramic": 44844,
+      "gold": 43836
+    },
+    "timings_s": {
+      "validate": 0.11570977885276079,
+      "crack_graph": 0.009981299750506878,
+      "projection": 0.012245594523847103,
+      "cutter": 0.7650826973840594,
+      "csg": 0.5173969632014632,
+      "debris_swap": 0.9272673977538943,
+      "export": 1.1489687757566571,
+      "total": 4.187071154825389
+    },
+    "wall_clock_s": 4.19431715644896,
+    "ceramic_path": "output/bowl_R0.2_vein/ceramic_body.stl",
+    "gold_path": "output/bowl_R0.2_vein/gold_seams.stl",
+    "three_mf_path": "output/bowl_R0.2_vein.3mf"
+  }
+]

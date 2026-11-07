@@ -1,0 +1,4 @@
+# Development/test-only dependencies.
+# rtree is needed solely by trimesh.proximity.thickness in the thickness test.
+rtree>=1.1
+httpx>=0.27
