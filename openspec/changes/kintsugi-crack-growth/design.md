@@ -37,11 +37,13 @@ rounded:
 
 ## 1. Visual Overview & Philosophy
 
-The user interface retains **100% fidelity to the authentic Windows XP Luna desktop aesthetic** defined in `DESIGN.md`. The design balances nostalgic early-2000s desktop nostalgia (Luna royal blue gradients, beveled gray chrome dialogs, emerald green candy buttons) with a state-of-the-art interactive 3D WebGL viewport.
+The user interface retains **100% fidelity to the authentic Windows XP Luna desktop aesthetic** defined in `DESIGN.md`. The design balances nostalgic early-2000s desktop computing (Luna royal blue gradients, beveled gray chrome dialogs, emerald green candy buttons) with a state-of-the-art interactive 3D WebGL viewport.
 
 - **Aesthetic Tone**: Authentic early-2000s Windows XP computing, tactile bevels, clean industrial tool ergonomics.
 - **Target Surfaces**: Desktop web browsers (Chrome, Firefox, Safari) and local loopback workstation viewers.
-- **Visual References**: Windows XP Luna Royale, Kintsugi Studio 2001 (`static/xp.css`).
+- **Visual References**:
+  - UI Theme: Windows XP Luna Royale, Kintsugi Studio 2001 (`static/xp.css`).
+  - 3D Ceramic Morphology: Traditional Japanese Kintsugi pottery (e.g. Muromachi/Edo period tea bowls repaired with urushi lacquer and dusted gold), characterized by organic dendritic fracture trunks, delicate secondary fissures, and natural T-junction arrests rather than uniform polygonal tiling.
 
 ---
 
@@ -90,17 +92,18 @@ To ensure the new growth engine produces authentic Wabi-Sabi fracture lines rath
 
 ```mermaid
 flowchart TD
-    Lip["Rim Impact Seed<br/>(z >= wall_max)"] --> Trunk["Primary Fissure Trunk<br/>(Heading within ±60° of down)"]
+    Lip["Rim Impact Seed<br/>(Poisson spacing, z >= wall_max)"] --> Trunk["Primary Fissure Trunk<br/>(Heading within ±60° of down)"]
     Trunk --> Fork["Acute Branch Fork<br/>(Departure angle 30°-45°)"]
     Fork --> SubBranch["Secondary Whisker Fissure"]
-    Trunk --> Collision{"Segment Hit Check<br/>(Distance <= W)"}
-    Collision -->|"Hits Existing Crack"| TJunction["Stop-on-Hit & Vertex Snap<br/>Clean T-Junction (No Crossings)"]
-    Collision -->|"Reaches Depth Limit"| DepthTrunc["H(S) Penetration Termination"]
+    Trunk --> Collision{"Segment Hit Check<br/>(Earliest contact within W + 0.8mm)"}
+    Collision -->|"Arrival angle >= 30°"| TJunction["Stop-on-Hit & Vertex Snap<br/>Clean T-Junction (Shared Node)"]
+    Collision -->|"Arrival angle < 30°"| Turn["Resample Heading / Free End"]
+    Collision -->|"Reaches Jittered Limit"| DepthTrunc["Penetration Termination (No Flat Shelf)"]
 ```
 
 1. **Hierarchy**: High visual contrast between thick, dominant primary fault lines and delicate secondary feeder branches.
 2. **Tortuosity**: Jagged local heading deviation ($\text{median arc / chord} \ge 1.05$, measured per junction-to-junction segment) without high-frequency zig-zags that collapse into nozzle bloat.
-3. **Natural T-Junctions**: Junctions must be acute T-junctions ($> 80\%$), completely eliminating $120^\circ$ Voronoi Y-junctions.
+3. **Natural T-Junctions**: True fracture lines terminate into existing cracks forming T-junctions (defined as continuous crack meeting at $\ge 140^\circ$), completely eliminating $120^\circ$ Voronoi Y-junctions.
 4. **Rim Cascades**: Cracks begin cleanly at the lip and flow down, avoiding horizontal shelf artifacts.
 
 ---

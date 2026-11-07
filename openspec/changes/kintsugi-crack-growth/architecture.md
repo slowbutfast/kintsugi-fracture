@@ -16,7 +16,7 @@ flowchart TD
     B --> C["KintsugiParameters<br/>(N, W, H, Severity S)"]
     
     C --> D{"--generator"}
-    D -->|"growth (default)"| E["generate_crack_growth_paths<br/>- Rim Seeds at z >= wall_max<br/>- Heading in ±60° of down<br/>- Acute branching (30°-45°)<br/>- Stop-on-hit T-junctions & snapping<br/>- Clearance >= W + 0.8mm<br/>- θ = 0..2π seam wrap"]
+    D -->|"growth (default)"| E["generate_crack_growth_paths<br/>- Rim Seeds (Poisson spacing)<br/>- Heading within ±60° of down<br/>- Acute branching (30°-45°)<br/>- First-hit snapping & subdivision<br/>- Junction exemption zone<br/>- θ = 0..2π seam wrap"]
     D -->|"voronoi (CLI legacy)"| F["generate_crack_voronoi_paths<br/>- Periodic Voronoi<br/>- Sine noise perturbation"]
     
     E & F --> G["List of 2D Polylines [ (u, z) ]"]
@@ -24,7 +24,7 @@ flowchart TD
     H --> I["project_crack_paths<br/>- Radial ray casting onto Manifold<br/>- Rim points clamped to wall_max - 0.05"]
     I --> J{"mode"}
     
-    J -->|"vein (default)"| K["_build_vein_cutter<br/>- Spherical/capsule hulls<br/>- Depth d = max(0, min(0.75W, 0.5t, t - 0.8mm))"]
+    J -->|"vein (default)"| K["_build_vein_cutter<br/>- Depth d = min(0.75W, 0.5t, t - 0.8mm)<br/>- Omit points where d < 0.25mm (prevents kissing bugs)"]
     J -->|"ribbon"| L["_build_ribbon_cutter<br/>- Through-wall slabs"]
     
     K & L --> M["Manifold3D CSG Kernel<br/>ceramic = body - cutter<br/>gold = body ∩ cutter"]
@@ -37,9 +37,9 @@ flowchart TD
 **Goals:**
 - **Zero Crossings by Construction**: Eliminating F18 entirely without relying on global 2D displacement fields or Lipschitz bounds.
 - **Organic Lightning Morphology**: Natural dendritic tree branching, acute angles ($30^\circ\text{–}45^\circ$), and authentic T-junctions.
-- **Shared Vertex Subdivision**: When a crack stops at an existing segment, the hit segment is subdivided so the junction vertex is explicitly shared by both polylines.
-- **Seam Continuity & Clearance**: Seamless traversal across the unrolled cylindrical meridian ($\theta = 0 \leftrightarrow 2\pi$) while keeping non-intersecting parallel cracks at least $W + 0.8\text{ mm}$ apart.
-- **Thin-Wall Protection**: Guaranteed $\ge 0.8\text{ mm}$ ceramic wall backing in vein inlay mode; grooves fade to zero depth where wall thickness $\le 0.8\text{ mm}$.
+- **First-Hit Snapping & Shared Vertex Subdivision**: When a candidate segment collides with an existing segment, it snaps to the earliest contact point and subdivides the hit segment so the vertex is explicitly shared by both polylines.
+- **Kissing-Edge Prevention**: Omission of cutter points where $d < 0.25\text{ mm}$ prevents tangent non-manifold contact between the cutter spheres and outer surface.
+- **Junction Exemption Zone**: Prevents newborn child branches from colliding with their parent segments at birth.
 - **Drop-in Compatibility**: 100% preservation of downstream CSG, export formats, and REST API.
 
 **Non-Goals:**
@@ -50,27 +50,27 @@ flowchart TD
 
 ## Technical Decisions
 
-### Decision 1: Rim-Seeded Growth with Stop-on-Hit & Vertex Snapping
-- **Chosen**: Step-by-step segment propagation from rim seeds down through the trauma band. When an advancing segment intersects or comes within clearance distance $W$ of an existing segment, the advancing end snaps to the closest point $\mathbf{p}_{\text{hit}}$, terminates growth, and subdivides the hit segment at $\mathbf{p}_{\text{hit}}$.
-- **Rationale**: Physical brittle fractures in ceramics originate at stress concentrations (the rim/lip) and propagate downwards. Stop-on-hit with explicit vertex insertion naturally generates shared T-junctions without crossings, replacing ~400 lines of Voronoi ray clipping, boundary clamping, and noise folding with straightforward, robust 2D computational geometry.
+### Decision 1: Rim-Seeded Growth with First-Hit Snapping & Vertex Subdivision
+- **Chosen**: Step-by-step segment propagation from Poisson-spaced rim seeds down through the trauma band. When an advancing segment intersects or approaches within clearance $R_{\text{clear}} = W + 0.8\text{ mm}$ of an existing segment, the advancing end snaps to the earliest contact point $\mathbf{p}_{\text{hit}}$, terminates growth, and subdivides the hit segment at $\mathbf{p}_{\text{hit}}$.
+- **Rationale**: Physical brittle fractures in ceramics originate at stress concentrations (the rim/lip) and propagate downwards. Stop-on-hit with explicit vertex insertion naturally generates shared T-junctions without crossings or kissing edges.
 
-### Decision 2: Spatial Collision Detection with Periodic Wrapping & Clearance
-- **Chosen**: A 2D segment intersection and distance check in $(u, z)$ space where every candidate segment $\mathbf{s} = (\mathbf{p}_1, \mathbf{p}_2)$ is tested against all committed segments, as well as their periodic twins shifted by $\pm 2\pi\bar{r}$, and the crack's own earlier non-adjacent segments.
-- **Rationale**: Total crack segment count $M$ during growth is small ($M \le 200$), so exact segment-to-segment distance checks take $< 1\text{ ms}$ in pure NumPy while preventing parallel channels from merging into unprintable blobs.
+### Decision 2: Junction Exemption Zone & Grazing Resolution
+- **Chosen**: 
+  - Proximity checks against parent and incident segments are ignored within radius $R_{\text{exempt}} = \frac{W + 0.8\text{ mm}}{\sin \theta}$ around branch points and T-junctions.
+  - If a crack approaches an existing line at an arrival angle $< 30^\circ$, heading is resampled up to 3 times; if still $< 30^\circ$, it stops at the last committed point $\mathbf{p}_a$.
+- **Rationale**: Prevents newborn branches from immediately self-terminating against their parents, and prevents grazing intersections from creating unprintable knife-thin ceramic wedges.
 
 ### Decision 3: Separation of Growth Step Length from Cutter Sampling
 - **Chosen**: Growth steps advance by $[1.5W, 3.0W]$ to create macro-level directional jaggedness. Before feeding into `_build_vein_cutter`, polylines are subdivided to fine step length $\le W/2$.
 - **Rationale**: Decouples the morphological random-walk frequency from cutter sampling, preventing spherical cutter bloat and maintaining smooth CSG boolean operations.
 
-### Decision 4: Non-Puncturing Vein Inlay Depth Formula
-- **Chosen**: $d_i = \max(0.0,\ \min(0.75\,W,\ 0.5\,t_i,\ t_i - 0.8\text{ mm}))$.
-- **Rationale**: On thin pottery ($t_i \le 1.0\text{ mm}$), carving a fixed depth would puncture the ceramic or leave sub-nozzle skins. Clamping with a floor of $0.0$ allows the channel to fade out safely rather than leaking.
+### Decision 4: Non-Puncturing Depth Cutoff ($d \ge 0.25\text{ mm}$)
+- **Chosen**: $d_i = \min(0.75\,W,\ 0.5\,t_i,\ t_i - 0.8\text{ mm})$. Points with $d_i < 0.25\text{ mm}$ are omitted from cutter generation.
+- **Rationale**: At $d = 0$, cutter spheres touch the vessel outer surface tangentially at single points, which causes non-manifold edge errors in binary STL export. Ending the channel at $d = 0.25\text{ mm}$ ensures a clean, manifold boolean cut while preserving $\ge 0.8\text{ mm}$ ceramic wall backing.
 
 ## Risks / Trade-offs
 
-- **[Risk] Acute Branch Spikes**: Branches departing at very sharp angles ($< 25^\circ$) leave razor-thin ceramic wedges that challenge 3D printer nozzles.
-  - **Mitigation**: Constrain child branch departure angles to $[30^\circ, 45^\circ]$ and enforce minimum T-junction arrival incidence angle $\ge 30^\circ$.
-- **[Risk] Determinism and Growth Order**: In a stop-on-hit system, the winner of a collision depends on growth order.
-  - **Mitigation**: Advance cracks via a deterministic FIFO queue in spawn order, one step per turn, using seeded pseudo-random number generators.
-- **[Risk] Downstream Test Suite Regressions**: Tests specifically written for Voronoi topology (`test_crack_paths_lie_on_periodic_voronoi`) will fail if growth is enabled globally without a flag.
-  - **Mitigation**: Expose `--generator growth|voronoi`. Keep legacy Voronoi generator intact under `generate_crack_voronoi_paths` so existing Voronoi regression tests pass, while new tests validate growth topology.
+- **[Risk] Thin-Wall Test Coverage**: Existing presets have thick walls (2.4–3.0 mm) and never exercise the $d < 0.25\text{ mm}$ cutoff.
+  - **Mitigation**: Add a synthetic thin-wall preset (`thin_cylinder`, wall thickness 1.2 mm tapering to 0.7 mm) to `sample_models.py` and cover it in test suites and sweeps.
+- **[Risk] Existing Test Suite Regressions**: Tests specifically asserting Voronoi properties (`test_crack_paths_lie_on_periodic_voronoi`) will fail if growth is the unconditional default.
+  - **Mitigation**: Existing Voronoi-specific tests explicitly pass `--generator voronoi`, while growth tests validate growth graph properties.
