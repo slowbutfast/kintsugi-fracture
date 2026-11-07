@@ -1,0 +1,3310 @@
+{
+  "command": "tools/sweep_out_of_sample.py --presets tea_bowl vase --ratios 0.15 0.3 0.45 0.65 0.85 --modes ribbon vein --generator growth --seeds 500 501 502 503 504 505 506 507 --output output/verification/sweep_out_of_sample_patch01.json",
+  "generator": "growth",
+  "total": 160,
+  "counts": {
+    "ok": 160
+  },
+  "clean": 160,
+  "nonwatertight": 0,
+  "errors": 0,
+  "cutter_attempts": {
+    "1": 160
+  },
+  "cutter_variants": {
+    "1": 160
+  },
+  "ribbon_ceramic_components": {
+    "3": 12,
+    "5": 3,
+    "4": 2,
+    "2": 13,
+    "1": 49,
+    "6": 1
+  },
+  "run_time_median_s": 1.0182810742408037,
+  "run_time_max_s": 4.322233031503856,
+  "failures": [],
+  "results": [
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.9985375739634037
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.9628530805930495
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.7751630377024412
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 5,
+      "total_s": 1.1869054613634944
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 4,
+      "total_s": 0.883622127585113
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 5,
+      "total_s": 0.8831183239817619
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 1.030057244002819
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 5,
+      "total_s": 1.1940773036330938
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.1943078320473433
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.5748279504477978
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.730482578277588
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.2802177872508764
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.805596748366952
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.0845952965319157
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.569431997835636
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.612943857908249
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 1.1212101494893432
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 1.2508128453046083
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 1.1137274643406272
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.8291202019900084
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 4,
+      "total_s": 0.7168106492608786
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.109000955708325
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.6232574488967657
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.9245830122381449
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.6222941149026155
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.2841832926496863
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.5143584292382
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.77984831482172
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.8858001083135605
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.5297367619350553
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.044566155411303
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.0083213625475764
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.6412031166255474
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.0499946838244796
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.7067349087446928
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.875056916847825
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.7808235120028257
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.7358398828655481
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 0.6002371516078711
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.8768461663275957
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.8740362552925944
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.7236545234918594
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.823144894093275
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.580297521315515
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.296471263282001
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.4719733130186796
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.111770118586719
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.464469733648002
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.39887646678835154
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.5231658509001136
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.23585033137351274
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.39085897896438837
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.44012951385229826
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.26784284319728613
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 0.32147064432501793
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.39789302088320255
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.0832913229241967
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.620830899104476
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.6373805338516831
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.4103407599031925
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.2703210432082415
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.7587335808202624
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.8761180434376001
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.2275839066132903
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.24539358913898468
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.20428234245628119
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.2601417973637581
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.19217171054333448
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.27352667693048716
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.22732872050255537
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.23774070385843515
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.22427030187100172
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.6281352788209915
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.4790491070598364
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.9798746639862657
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.4236769750714302
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.7021437222138047
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.5776497768238187
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.641501359641552
+    },
+    {
+      "preset": "tea_bowl",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.5228207688778639
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.0988135356456041
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.1407753471285105
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.9115102542564273
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 6,
+      "total_s": 1.035196514800191
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.7994252638891339
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.7541029527783394
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.010990490205586
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.8700046855956316
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.0231772921979427
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.108727525919676
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.480910007841885
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.650435943156481
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.8687763446941972
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.9833733914420009
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.5710366275161505
+    },
+    {
+      "preset": "vase",
+      "R": 0.15,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.297463749535382
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 3,
+      "total_s": 0.860228187404573
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 1.544079321436584
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 1.536111873574555
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.0255716582760215
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.8331464258953929
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 1.0946046710014343
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 0.7236622907221317
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 2.0595616875216365
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.9711483819410205
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.798436814919114
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 4.149613996036351
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.0028585325926542
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.8548962073400617
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.013006594032049
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.769484231248498
+    },
+    {
+      "preset": "vase",
+      "R": 0.3,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.3200075114145875
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.0565473642200232
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.823532554320991
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.0872983476147056
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 0.807304591871798
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.701371437869966
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 1.073992789722979
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 1.0763870030641556
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.8482057964429259
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.0257306452840567
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 4.322233031503856
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.970789701677859
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.4258114006370306
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.149489506147802
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.2056719083338976
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 3.259896312840283
+    },
+    {
+      "preset": "vase",
+      "R": 0.45,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 2.3245878741145134
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.47428875882178545
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 0.5840054554864764
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.27105854265391827
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.575546164996922
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 2,
+      "total_s": 0.5273361960425973
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.36022659577429295
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.27114262245595455
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.42632455192506313
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.2390540577471256
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.7153047872707248
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.6730747492983937
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.5467211389914155
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.581032583490014
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.1081451931968331
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.6752896821126342
+    },
+    {
+      "preset": "vase",
+      "R": 0.65,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.0018077567219734
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.26990949641913176
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.2233869368210435
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.4197533130645752
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.20204392913728952
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.22056983970105648
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.25327187590301037
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.26079816091805696
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "ribbon",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "ceramic_components": 1,
+      "total_s": 0.24655647575855255
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 500,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.6573340548202395
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 501,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.4955438859760761
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 502,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 1.1406780276447535
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 503,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.437353297136724
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 504,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.4785943450406194
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 505,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.6114006992429495
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 506,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.651563580147922
+    },
+    {
+      "preset": "vase",
+      "R": 0.85,
+      "mode": "vein",
+      "seed": 507,
+      "status": "ok",
+      "outputs": [
+        {
+          "watertight": true,
+          "bad_edges": 0
+        },
+        {
+          "watertight": true,
+          "bad_edges": 0
+        }
+      ],
+      "cutter_attempts": 1,
+      "cutter_variants": 1,
+      "total_s": 0.594846161082387
+    }
+  ]
+}

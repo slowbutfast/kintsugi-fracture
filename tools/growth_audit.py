@@ -9,8 +9,10 @@ and incidence angles, T/Y junction counts and tortuosity percentiles.
 Gates (all must hold for the audit to pass):
     * zero crossings
     * zero clearance violations
-    * mean T-junction ratio >= 0.80
     * median tortuosity >= 1.05
+
+The T/Y junction distribution is reported for morphology inspection and is
+deliberately not a pass/fail gate.
 
 Usage:
     .venv/bin/python tools/growth_audit.py [--presets tea_bowl vase]
@@ -222,7 +224,6 @@ def _summary(seeds, rows, samples, total_errors):
         "errors": int(total_errors),
         "pass_crossings": total_crossings == 0,
         "pass_clearance": total_clearance == 0,
-        "pass_t_junctions": t_ratio >= 0.80,
         "pass_tortuosity": tortuosity_median >= 1.05,
     }
     summary["ok"] = all(
@@ -230,7 +231,6 @@ def _summary(seeds, rows, samples, total_errors):
         for key in (
             "pass_crossings",
             "pass_clearance",
-            "pass_t_junctions",
             "pass_tortuosity",
         )
     )

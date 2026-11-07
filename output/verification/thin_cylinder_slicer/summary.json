@@ -1,23 +1,25 @@
 {
+  "case": "thin_cylinder R=0.0 seed=0 vein",
   "result": {
-    "num_cracks": 11,
+    "num_cracks": 18,
+    "seams_omitted": false,
     "cutter_attempts": 1,
     "cutter_variants": 1,
     "triangle_counts": {
-      "ceramic": 7012,
-      "gold": 6224
+      "ceramic": 4652,
+      "gold": 3868
     },
     "volumes": {
       "input": 15683.053137730956,
-      "ceramic": 15660.588592863169,
-      "gold": 22.46454486778762,
-      "pre_swap_ceramic": 15660.588592863169,
-      "pre_swap_gold": 22.46454486778762
+      "ceramic": 15669.12377927447,
+      "gold": 13.929358456486405,
+      "pre_swap_ceramic": 15669.12377927447,
+      "pre_swap_gold": 13.929358456486405
     }
   },
   "ceramic_watertight": true,
   "gold_watertight": true,
-  "three_mf_path": "output/verification/thin_cylinder_slicer/kintsugi_assembly.3mf",
+  "gold_file_exists": true,
   "3mf_has_ceramic": true,
   "3mf_has_gold": true,
   "3mf_component_count": 2

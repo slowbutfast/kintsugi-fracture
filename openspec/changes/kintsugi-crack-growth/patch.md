@@ -16,4 +16,10 @@
   2. Cracks entering clearance zone at arrival angle $\ge 30^\circ$ project forward to intersect and snap into clean shared T-junctions.
   3. Correlated heading walk with occasional kinks, higher branch rate (up to 2–3 branches per trunk), and sideways branch angles (up to $\pm 85^\circ$) to link trunks.
   4. 43+ unit tests pass, zero crossings across sweeps.
-- **Status**: PENDING
+- **Status**: **RESOLVED** on 2026-11-07
+- **Resolution Evidence**:
+  1. `test_empty_gold_solid_omits_file_and_warns` passes on `thin_cylinder` at R=0.62, seed=620; `gold_path` is `None`, no `gold_seams.stl` is written, the 3MF has only `CeramicBody`, and `seams_omitted: true` / `num_cracks: 0` are reported.
+  2. `_forward_t_junction` projects the candidate trajectory forward into a shared subdivided T-junction; both 200-seed audits report 0 crossings and 0 clearance violations.
+  3. Correlated heading walk, 2–3 branches per trunk, ±85° heading limits and 30–85° lateral linkers produce connected morphology; labelled contact sheet in `output/spike/contact_sheet.png`.
+  4. `growth_audit.py` reports T/Y distribution without an 80% gate.
+  5. Full profile PASS: 43/43 unit tests, 160/160 watertight sweep samples, 0 cutter retries, final report fingerprint `09da3a5e157d6eb1`. See `verification.md`.

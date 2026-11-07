@@ -727,8 +727,9 @@ GROWTH_CLEARANCE_MM = 0.8
 GROWTH_MIN_INCIDENCE_DEG = 30.0
 GROWTH_MIN_DEPTH_MM = 0.25
 _GROWTH_DOWN = -0.5 * math.pi
-_GROWTH_MIN_HEADING = _GROWTH_DOWN - math.pi / 3.0
-_GROWTH_MAX_HEADING = _GROWTH_DOWN + math.pi / 3.0
+# Allow near-horizontal descent so branches can link distant trunks.
+_GROWTH_MIN_HEADING = _GROWTH_DOWN - math.radians(85.0)
+_GROWTH_MAX_HEADING = _GROWTH_DOWN + math.radians(85.0)
 
 
 @dataclass
@@ -743,8 +744,9 @@ class _GrowthTask:
     level: int
     exempt_path_id: int | None = None
     exempt_origin: np.ndarray | None = None
-    branch_spawned: bool = False
-    branch_at: int | None = None
+    branch_limit: int = 0
+    branch_count: int = 0
+    next_branch_step: int = 1
     steps: int = 0
 
 
@@ -926,6 +928,65 @@ def _segment_outside_circle(
     return pieces
 
 
+def _cross2(first: np.ndarray, second: np.ndarray) -> float:
+    return float(first[0] * second[1] - first[1] * second[0])
+
+
+def _forward_t_junction(
+    start: np.ndarray,
+    direction: np.ndarray,
+    collision: dict,
+    paths: Sequence[Sequence[np.ndarray]],
+    period: float,
+    r_clear: float,
+    tol: float = 1e-6,
+) -> tuple[np.ndarray, np.ndarray, float] | None:
+    """Project the candidate trajectory forward onto the hit segment.
+
+    Returns ``(p_hit_world, p_hit_local, t)`` where ``t`` scales the travel
+    vector.  The projection is bounded to a short forward extension so a
+    near-miss becomes a shared T-junction instead of a separated rain streak.
+    """
+    segment_a = collision.get("segment_a")
+    segment_b = collision.get("segment_b")
+    if segment_a is None or segment_b is None:
+        return None
+    direction = np.asarray(direction, dtype=np.float64)
+    step_length = float(np.linalg.norm(direction))
+    if step_length < 1e-12:
+        return None
+    segment_a = np.asarray(segment_a, dtype=np.float64)
+    segment_b = np.asarray(segment_b, dtype=np.float64)
+    segment_vector = segment_b - segment_a
+    if float(np.linalg.norm(segment_vector)) < 1e-12:
+        return None
+    denominator = _cross2(direction, segment_vector)
+    if abs(denominator) < 1e-12:
+        return None
+    start_to_segment = segment_a - np.asarray(start, dtype=np.float64)
+    t = _cross2(start_to_segment, segment_vector) / denominator
+    s = _cross2(start_to_segment, direction) / denominator
+    if t <= 1e-9:
+        return None
+    max_forward_distance = max(2.0 * step_length, 4.0 * r_clear)
+    if t * step_length > max_forward_distance:
+        return None
+    if s < -tol * 10.0 or s > 1.0 + tol * 10.0:
+        return None
+    s = min(max(s, 0.0), 1.0)
+    hit = segment_a + s * segment_vector
+
+    hit_path = paths[collision["path_id"]]
+    if _periodic_distance(hit, hit_path[0], period) <= tol:
+        return None
+    if _periodic_distance(hit, hit_path[-1], period) <= tol:
+        return None
+
+    shift = float(collision.get("shift", 0.0))
+    local = hit - np.array([shift, 0.0])
+    return hit, local, float(t)
+
+
 def _first_growth_collision(
     paths: Sequence[Sequence[np.ndarray]],
     path_id: int,
@@ -1014,6 +1075,9 @@ def _first_growth_collision(
                     "hit_local": contact - np.array([shift, 0.0]),
                     "tangent": tangent,
                     "free_end": free_end,
+                    "shift": float(shift),
+                    "segment_a": shifted_c.copy(),
+                    "segment_b": shifted_d.copy(),
                 }
                 if (
                     best is None
@@ -1072,7 +1136,10 @@ def _branch_heading(
     r_clear: float,
     outgoing_heading: float | None = None,
 ) -> float | None:
-    angle = math.radians(float(rng.uniform(30.0, 45.0)))
+    if float(rng.random()) < 0.60:
+        angle = math.radians(float(rng.uniform(30.0, 45.0)))
+    else:
+        angle = math.radians(float(rng.uniform(45.0, 85.0)))
     signs = (-1.0, 1.0)
     if outgoing_heading is not None:
         turn = (float(outgoing_heading) - float(heading) + math.pi) % (
@@ -1158,13 +1225,7 @@ def generate_crack_growth_paths(
         stub = start + np.array([0.0, -stub_length], dtype=np.float64)
         paths.append([start, stub])
         budget = 1.2 * H
-        max_steps = max(2, int(math.ceil(budget / (1.5 * W))))
-        will_branch = float(rng.random()) < 0.15 * severity
-        branch_at = (
-            int(rng.integers(1, max_steps))
-            if will_branch and max_steps > 1
-            else None
-        )
+        branch_limit = 3 if severity >= 0.85 else 2
         tasks.append(
             _GrowthTask(
                 path_id=len(paths) - 1,
@@ -1173,7 +1234,7 @@ def generate_crack_growth_paths(
                 z_limit=z_limit,
                 budget=budget,
                 level=0,
-                branch_at=branch_at,
+                branch_limit=branch_limit,
                 steps=1,
             )
         )
@@ -1192,12 +1253,17 @@ def generate_crack_growth_paths(
             if attempt == 0 and task.steps == 0:
                 candidate_heading = _clamp_heading(task.heading)
             else:
-                jitter_deg = 55.0 if attempt == 0 else 70.0
+                if attempt == 0:
+                    # Correlated walk: mostly small inertia-preserving
+                    # changes, with occasional sharp kinks for tortuosity.
+                    if float(rng.random()) < 0.50:
+                        delta_deg = float(rng.uniform(-80.0, 80.0))
+                    else:
+                        delta_deg = float(rng.normal(0.0, 20.0))
+                else:
+                    delta_deg = float(rng.uniform(-75.0, 75.0))
                 candidate_heading = _clamp_heading(
-                    task.heading
-                    + math.radians(
-                        float(rng.uniform(-jitter_deg, jitter_deg))
-                    )
+                    task.heading + math.radians(delta_deg)
                 )
 
             remaining = task.budget - task.traveled
@@ -1258,57 +1324,93 @@ def generate_crack_growth_paths(
                     terminal = True
                 break
 
-            if collision["free_end"]:
-                # A free crack end has no segment to subdivide; resampling
-                # avoids a head-on T-T pairing that would read as a Y node.
-                continue
-            if collision["distance"] > 1e-7:
-                # A proximity near-miss has no point on the hit segment that
-                # lies on the candidate travel vector.  Snapping to the
-                # closest point would invent a short oblique connector that
-                # can cross another crack, so resample instead.
+            travel = candidate - start
+            arrival = _acute_angle_deg(travel, collision["tangent"])
+            forward = None
+            if (
+                not collision["free_end"]
+                and arrival >= GROWTH_MIN_INCIDENCE_DEG - 1e-9
+            ):
+                forward = _forward_t_junction(
+                    start,
+                    travel,
+                    collision,
+                    paths,
+                    period,
+                    r_clear,
+                )
+            if forward is None:
+                # Grazing approach or no safe intersection: resample the
+                # heading up to three more times before stopping short.
                 continue
 
-            arrival = _acute_angle_deg(
-                collision["hit"] - start, collision["tangent"]
+            hit, hit_local, t_forward = forward
+            forward_distance = t_forward * float(np.linalg.norm(travel))
+            if forward_distance <= 1e-9:
+                continue
+            if task.traveled + forward_distance > task.budget + 1e-9:
+                continue
+            if hit[1] < task.z_limit - 1e-9:
+                continue
+
+            # Re-check the extended segment: the target at its endpoint is a
+            # valid T, but any other segment hit earlier would be a crossing.
+            extended = _first_growth_collision(
+                paths,
+                task.path_id,
+                start,
+                hit,
+                period=period,
+                r_clear=r_clear,
+                exempt_path_id=task.exempt_path_id,
+                exempt_origin=task.exempt_origin,
+                exempt_radius=(
+                    1.10 * r_clear / math.sin(math.radians(30.0))
+                    if task.exempt_path_id is not None
+                    else 0.0
+                ),
             )
-            if arrival >= GROWTH_MIN_INCIDENCE_DEG - 1e-9:
-                if float(np.linalg.norm(collision["hit"] - start)) > 1e-9:
-                    path.append(collision["hit"].copy())
-                    task.traveled += float(
-                        np.linalg.norm(collision["hit"] - start)
-                    )
-                junction_records.append(
-                    {
-                        "point": [
-                            float(collision["hit"][0] % period),
-                            float(collision["hit"][1]),
-                        ],
-                        "kind": "T",
-                        "path": task.path_id,
-                        "parent": int(collision["path_id"]),
-                        "angle": float(arrival),
-                        "parent_kink_deg": 0.0,
-                    }
-                )
-                _subdivide_path(
-                    paths[collision["path_id"]],
-                    int(collision["segment_index"]),
-                    collision["hit_local"],
-                )
-                moved = True
-                terminal = True
-                break
-            # Grazing approach: resample the heading up to three more times.
+            if (
+                extended is None
+                or int(extended["path_id"]) != int(collision["path_id"])
+                or int(extended["segment_index"])
+                != int(collision["segment_index"])
+                or float(extended["t"]) < 1.0 - 1e-6
+            ):
+                continue
+
+            path.append(hit.copy())
+            task.traveled += forward_distance
+            junction_records.append(
+                {
+                    "point": [
+                        float(hit[0] % period),
+                        float(hit[1]),
+                    ],
+                    "kind": "T",
+                    "path": task.path_id,
+                    "parent": int(collision["path_id"]),
+                    "angle": float(arrival),
+                    "parent_kink_deg": 0.0,
+                }
+            )
+            _subdivide_path(
+                paths[collision["path_id"]],
+                int(collision["segment_index"]),
+                hit_local,
+            )
+            moved = True
+            terminal = True
+            break
 
         if (
             moved
             and not terminal
             and task.level == 0
-            and not task.branch_spawned
-            and task.branch_at is not None
-            and task.steps >= task.branch_at
+            and task.branch_count < task.branch_limit
+            and task.steps >= task.next_branch_step
             and len(path) >= 3
+            and float(rng.random()) < min(0.90, 0.22 * severity)
         ):
             origin = path[-2].copy()
             incoming = path[-2] - path[-3]
@@ -1378,7 +1480,8 @@ def generate_crack_growth_paths(
                             exempt_origin=origin.copy(),
                         )
                     )
-                    task.branch_spawned = True
+                    task.branch_count += 1
+                    task.next_branch_step = task.steps + 3
 
         if moved and not terminal:
             tasks.append(task)
@@ -2533,6 +2636,20 @@ def _write_stl(
     Path(path).write_bytes(data)
 
 
+def _gold_solid_omitted(
+    gold: mf.Manifold | None,
+    gold_mesh: trimesh.Trimesh | None = None,
+) -> bool:
+    """True when there is no printable gold solid to export."""
+    if gold is None or gold.is_empty():
+        return True
+    if hasattr(gold, "num_tri") and gold.num_tri() == 0:
+        return True
+    if gold_mesh is not None and len(gold_mesh.faces) == 0:
+        return True
+    return False
+
+
 def export_kintsugi_stl(
     ceramic: mf.Manifold,
     gold: mf.Manifold | None,
@@ -2546,13 +2663,21 @@ def export_kintsugi_stl(
     gold_path = Path(gold_path)
     _write_stl(ceramic, ceramic_path, ceramic_mesh)
 
-    if gold is None:
+    if _gold_solid_omitted(gold, gold_mesh):
         # Make sure a seam from an earlier run cannot be paired with this body.
         gold_path.unlink(missing_ok=True)
-        return {"ceramic_path": ceramic_path, "gold_path": None}
+        return {
+            "ceramic_path": ceramic_path,
+            "gold_path": None,
+            "seams_omitted": True,
+        }
 
     _write_stl(gold, gold_path, gold_mesh)
-    return {"ceramic_path": ceramic_path, "gold_path": gold_path}
+    return {
+        "ceramic_path": ceramic_path,
+        "gold_path": gold_path,
+        "seams_omitted": False,
+    }
 
 
 def _mesh_xml(parent: ET.Element, mesh: trimesh.Trimesh) -> None:
@@ -2605,7 +2730,7 @@ def export_kintsugi_3mf(
     )
     ET.SubElement(components, f"{{{CORE_NS}}}component", {"objectid": "2"})
 
-    if gold is not None:
+    if not _gold_solid_omitted(gold, gold_mesh):
         gold_obj = ET.SubElement(
             resources,
             f"{{{CORE_NS}}}object",
@@ -2735,6 +2860,7 @@ def generate_kintsugi_mesh(
                 "gold": 0,
             },
             "num_cracks": 0,
+            "seams_omitted": True,
             "cutter_attempts": 0,
             "cutter_variants": 0,
             "guard_evaluations": 0,
@@ -2845,23 +2971,26 @@ def generate_kintsugi_mesh(
     params["guard_evaluations"] = guard_evaluations
     params["debris_unmoved"] = debris_stats.get("debris_unmoved", 0)
 
+    gold_omitted = _gold_solid_omitted(gold, gold_export_mesh)
+    params["seams_omitted"] = bool(gold_omitted)
+
     export_started = time.perf_counter()
     export_kintsugi_stl(
         ceramic,
-        gold,
+        None if gold_omitted else gold,
         ceramic_path,
         gold_path,
         ceramic_mesh=ceramic_export_mesh,
-        gold_mesh=gold_export_mesh,
+        gold_mesh=gold_export_mesh if not gold_omitted else None,
     )
     if three_mf_path is not None:
         three_mf_path.parent.mkdir(parents=True, exist_ok=True)
         export_kintsugi_3mf(
             ceramic,
-            gold,
+            None if gold_omitted else gold,
             three_mf_path,
             ceramic_mesh=ceramic_export_mesh,
-            gold_mesh=gold_export_mesh,
+            gold_mesh=gold_export_mesh if not gold_omitted else None,
         )
     timings["export"] = time.perf_counter() - export_started
     timings["total"] = time.perf_counter() - started
@@ -2872,20 +3001,21 @@ def generate_kintsugi_mesh(
 
     return {
         "ceramic_path": str(ceramic_path),
-        "gold_path": str(gold_path),
+        "gold_path": None if gold_omitted else str(gold_path),
         "three_mf_path": str(three_mf_path) if three_mf_path else None,
+        "seams_omitted": bool(gold_omitted),
         "volumes": {
             "input": input_volume,
             "ceramic": float(ceramic.volume()),
-            "gold": float(gold.volume()),
+            "gold": 0.0 if gold_omitted else float(gold.volume()),
             "pre_swap_ceramic": float(ceramic_before.volume()),
             "pre_swap_gold": float(gold_before.volume()),
         },
         "triangle_counts": {
             "ceramic": int(len(ceramic_trimesh.faces)),
-            "gold": int(len(gold_trimesh.faces)),
+            "gold": 0 if gold_omitted else int(len(gold_trimesh.faces)),
         },
-        "num_cracks": int(len(projected_paths)),
+        "num_cracks": 0 if gold_omitted else int(len(projected_paths)),
         "cutter_attempts": int(params.get("cutter_attempts", 0)),
         "cutter_variants": int(params.get("cutter_variants", 0)),
         "guard_evaluations": int(params.get("guard_evaluations", 0)),

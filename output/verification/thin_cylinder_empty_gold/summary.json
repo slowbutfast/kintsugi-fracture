@@ -1,0 +1,26 @@
+{
+  "case": "thin_cylinder R=0.62 seed=620 vein (empty-gold reproduction)",
+  "result": {
+    "gold_path": null,
+    "num_cracks": 0,
+    "seams_omitted": true,
+    "cutter_attempts": 1,
+    "cutter_variants": 1,
+    "triangle_counts": {
+      "ceramic": 768,
+      "gold": 0
+    },
+    "volumes": {
+      "input": 15683.053137730956,
+      "ceramic": 15683.053137730956,
+      "gold": 0.0,
+      "pre_swap_ceramic": 15683.053137730956,
+      "pre_swap_gold": 0.0
+    }
+  },
+  "gold_file_exists": false,
+  "ceramic_watertight": true,
+  "3mf_has_ceramic": true,
+  "3mf_has_gold": false,
+  "3mf_component_count": 1
+}

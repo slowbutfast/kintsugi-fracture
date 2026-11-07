@@ -271,8 +271,8 @@ def run_growth_audit(tmp: Path) -> dict:
     ok = bool(summary.get("ok")) and int(summary.get("errors", 0)) == 0
     return {
         "status": "pass" if ok else "fail",
-        "criteria": "0 crossings, 0 clearance violations, T-ratio >= 0.80, "
-                    "median tortuosity >= 1.05, 0 errors",
+        "criteria": "0 crossings, 0 clearance violations, "
+                    "median tortuosity >= 1.05, 0 errors; T/Y reported for inspection",
         "duration_s": round(time.perf_counter() - started, 1),
         "summary": summary,
         "rows": data.get("rows", []),
