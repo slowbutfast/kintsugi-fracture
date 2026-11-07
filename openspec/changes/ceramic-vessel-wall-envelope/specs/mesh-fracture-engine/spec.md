@@ -1,18 +1,18 @@
 ## MODIFIED Requirements
 
 ### Requirement: Supported input envelope
-The system SHALL accept only inputs inside a declared envelope and SHALL reject everything else with a `ValueError` rather than producing degraded geometry. The envelope is: a closed, orientable 2-manifold triangle mesh; units of millimetres; +Z up; all bounding-box extents within $[20, 300]\text{ mm}$; a radially star-shaped exterior within the trauma band (meaning every radial ray cast from the vertical axis through the bounding-box XY centre, at any $z$ in the trauma band, hits the outer surface); and a 5th-percentile two-hit wall thickness $p_5 \ge 1.6\text{ mm}$ within the trauma band.
+The system SHALL accept only inputs inside a declared envelope and SHALL reject everything else with a `ValueError` rather than producing degraded geometry. The envelope is: a closed, orientable 2-manifold triangle mesh; units of millimetres; +Z up; all bounding-box extents within $[20, 300]\text{ mm}$; a radially star-shaped exterior across the full wall range `[wall_z_min, wall_z_max]` (meaning every radial ray cast from the vertical axis through the bounding-box XY centre, at any $z \in [\text{wall\_z\_min}, \text{wall\_z\_max}]$, hits the outer surface); and a 5th-percentile two-hit wall thickness $p_5 \ge 1.6\text{ mm}$ measured along inward surface normals across the full wall range `[wall_z_min, wall_z_max]`. This envelope requirement SHALL apply uniformly across all fracture modes (`vein` and `ribbon`).
 
 #### Scenario: Vessel of revolution inside the envelope
-- **WHEN** a watertight tea bowl STL with extents $90 \times 90 \times 60\text{ mm}$ and wall thickness $\ge 2.0\text{ mm}$ is loaded
+- **WHEN** a watertight tea bowl STL with extents $90 \times 90 \times 60\text{ mm}$ and wall thickness $p_5 \ge 1.6\text{ mm}$ across the wall range is loaded
 - **THEN** the system accepts it and proceeds to crack generation
 
 #### Scenario: Vessel with wall thickness below ceramic envelope
-- **WHEN** a mesh with 5th-percentile two-hit wall thickness $p_5 < 1.6\text{ mm}$ within the trauma band is loaded (e.g. `thin_cylinder` with wall thickness $0.7\text{--}1.2\text{ mm}$)
+- **WHEN** a mesh with 5th-percentile normal wall thickness $p_5 < 1.6\text{ mm}$ across `[wall_z_min, wall_z_max]` is loaded (e.g. `thin_cylinder` fixture with wall thickness $0.7\text{--}1.2\text{ mm}$)
 - **THEN** the system raises a `ValueError` stating the measured wall thickness $p_5$ and that input vessels must have $p_5 \ge 1.6\text{ mm}$ to guarantee safe ceramic backing
 
 #### Scenario: Vessel at ceramic envelope boundary
-- **WHEN** a mesh with 5th-percentile two-hit wall thickness $p_5 = 1.6\text{ mm}$ within the trauma band is loaded
+- **WHEN** a mesh with normal wall thickness tested near the boundary (e.g. $p_5 \approx 1.7\text{ mm}$) is loaded
 - **THEN** the system accepts it and proceeds to crack generation
 
 #### Scenario: Wrong units or scale
@@ -20,7 +20,7 @@ The system SHALL accept only inputs inside a declared envelope and SHALL reject 
 - **THEN** the system raises a `ValueError` naming the offending extent and the expected millimetre range
 
 #### Scenario: Non-vessel geometry
-- **WHEN** more than $5\%$ of the radial probe rays in the trauma band miss the mesh (e.g. a Benchy, or a mesh far off the Z axis)
+- **WHEN** more than $5\%$ of the radial probe rays across the wall range miss the mesh (e.g. a Benchy, or a mesh far off the Z axis)
 - **THEN** the system raises a `ValueError` stating that the input is not a vessel the cylindrical parameterisation supports
 
 ### Requirement: Metric R validation and clamping
@@ -31,7 +31,7 @@ The system SHALL validate the input income ratio $R$ as a finite float and compu
 | Seed count | $N(S) = \lfloor 2 + 8S \rfloor$ primary rim trunks |
 | Seam width | $W(S) = 0.8 + 1.4S$ mm (overridable via `seam_width`, which SHALL be rejected below $0.8$ mm) |
 | Trauma penetration depth | $H(S) = H_{wall} \cdot (0.2 + 0.8S)$, measured downwards from `wall_z_max` |
-| Ribbon depth | $D_i = t_i + 1.0$ mm, where $t_i$ is the local wall thickness at path point $i$ |
+| Ribbon depth | $D_i = t_i + 1.0$ mm, where $t_i$ is local normal wall thickness at path point $i$ |
 | Vein inlay depth | $d_i = \min(0.75\,W,\ 0.5\,t_i)$, continuously along each crack without point omissions |
 
 #### Scenario: Valid inequality metric
@@ -51,8 +51,8 @@ The system SHALL validate the input income ratio $R$ as a finite float and compu
 - **THEN** system raises a `ValueError` with an explanatory message
 
 #### Scenario: Ceramic vessel backing guarantee in vein mode
-- **WHEN** a vein inlay is carved on any valid vessel ($t_i \ge 1.6\text{ mm}$) with seam width $W = 1.0\text{ mm}$
-- **THEN** vein cutter depth $d_i$ is $\min(0.75, 0.5t_i)$, preserving nominal ceramic backing $t_i - d_i \ge 0.5t_i \ge 0.8\text{ mm}$ without cutter point omissions
+- **WHEN** a vein inlay is carved on any valid vessel with local normal wall thickness $t_i$ and seam width $W \in [0.8, 2.2]\text{ mm}$
+- **THEN** vein cutter depth $d_i$ is $\min(0.75W, 0.5t_i)$, preserving nominal ceramic backing $t_i - d_i \ge 0.5t_i$ everywhere, $\ge 0.8\text{ mm}$ wherever $t_i \ge 1.6\text{ mm}$, and minimum depth $\ge 0.6\text{ mm}$ without cutter point omissions
 
 #### Scenario: Empty gold solid defensive safeguard
 - **WHEN** an uncarved pass occurs ($R \ge 1.0$) or the complementary gold boolean has zero triangles
@@ -88,3 +88,15 @@ The system SHALL generate the crack network in an unrolled cylindrical parameter
 #### Scenario: Shipped growth graph is planar
 - **WHEN** crack paths are generated under the growth generator
 - **THEN** no two path segments intersect except at shared junction vertices across all seeds and severities; stop-on-hit guarantees planarity by construction
+
+#### Scenario: Radial projection takes the exterior hit and clamps rim overshoot
+- **WHEN** a parameter-space point $(u, z)$ is projected
+- **THEN** if $z \ge \text{wall\_z\_max}$, the ray is cast at $z = \text{wall\_z\_max} - \max(0.5, W/2)\text{ mm}$ to guarantee hitting the exterior lip below any rounded rim taper; otherwise the ray is cast from the axis at height $z$ outward along $\theta = u / \bar r$; the farthest hit is taken as exterior surface point $p_i$ with outward normal $n_i$, and local normal wall thickness $t_i$ is recorded as the distance along the inward surface normal $-n_i$ to the next interior hit
+
+#### Scenario: Ray miss
+- **WHEN** a projection ray returns no hits
+- **THEN** that path point is dropped and the path is split at that point; only misses whose $z$ lies inside the wall range $[\text{wall\_z\_min}, \text{wall\_z\_max}]$ count towards the $5\%$ envelope, and the input-envelope `ValueError` is raised only when that in-range fraction exceeds $5\%$
+
+#### Scenario: Perturbed points are truncated at the wall
+- **WHEN** a polyline leaves the wall range
+- **THEN** it is cut where $z$ leaves $[z_{wall,lo} + 0.5W,\ \text{wall\_z\_max} + 0.5W]$: the crossing point is interpolated exactly, outside parts are discarded, and kept pieces have at least two points and length $\ge W$

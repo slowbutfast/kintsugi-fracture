@@ -4,24 +4,24 @@
 
 ## Context
 
-The Kintsugi fracture engine fractures 3D vessel meshes driven by economic inequality $R$. In earlier iterations, the engine attempted to support sub-millimeter vase-mode vessels ($t < 1.0\text{ mm}$). Chasing a $0.8\text{ mm}$ ceramic backing on a $0.8\text{ mm}$ wall forced vein depth formula $d = t - 0.8\text{ mm}$, leading to $d \to 0$. This introduced tangent cutter contact ("kissing bug"), requiring an artificial $0.25\text{ mm}$ cutoff that omitted all cutter points on thin models like `thin_cylinder`, creating empty 84-byte gold STL files and misleading UI states.
+The Kintsugi fracture engine fractures 3D vessel meshes driven by economic disparity $R$. The previous engine attempted to support sub-millimeter vase-mode vessels ($t < 1.0\text{ mm}$). Chasing a $0.8\text{ mm}$ ceramic backing on thin walls forced vein depth formula $d = t - 0.8\text{ mm}$, causing $d \to 0$. This introduced tangent cutter contact ("kissing bug"), requiring an artificial $0.25\text{ mm}$ cutoff that omitted all cutter points on thin models like `thin_cylinder`, creating empty 84-byte gold STL files and misleading UI states. Furthermore, spiral vase mode is physically incompatible with multi-material toolheads on FDM slicers.
 
-Real ceramic pottery and multi-material 3D prints require multi-perimeter shells ($t \ge 1.6\text{ mm}$). Single-perimeter spiral vase mode cannot physically support multi-material inlays on FDM slicers. Restricting the engine's supported envelope to $p_5 \ge 1.6\text{ mm}$ mathematically guarantees nominal ceramic backing $\ge 0.8\text{ mm}$ under $d = \min(0.75W, 0.5t)$ everywhere, eliminating the entire point-omission and tangency cascade while providing bold, unbroken gold seams.
+Restricting the engine's supported envelope to $p_5 \ge 1.6\text{ mm}$ measured along inward surface normals across the full wall range `[wall_z_min, wall_z_max]` ensures that nominal ceramic backing is $\ge 0.5 \cdot t_i$ everywhere and $\ge 0.8\text{ mm}$ wherever $t_i \ge 1.6\text{ mm}$ under $d_i = \min(0.75W, 0.5t_i)$. This eliminates the root cause of cutter point omissions and empty-gold files on supported vessels while restoring bold, continuous gold veins.
 
 ## System Architecture Diagram
 
 ```mermaid
 flowchart TD
-    A["Input Mesh (.stl / .obj) + Metric R"] --> B["validate_and_load_mesh<br/>- Watertight 2-Manifold Mesh64<br/>- Units: mm, Extents in [20, 300] mm<br/>- Radial probe rays in trauma band<br/>- Preflight wall thickness p5 >= 1.6 mm"]
+    A["Input Mesh (.stl / .obj) + Metric R"] --> B["validate_and_load_mesh<br/>- Watertight 2-Manifold Mesh64<br/>- Units: mm, Extents in [20, 300] mm<br/>- Probe wall range [wall_z_min, wall_z_max] (independent of R)<br/>- Measure normal wall thickness via inward normals<br/>- Reject if p5 < 1.6 mm (uniform for vein & ribbon)"]
     B --> C["KintsugiParameters<br/>(N, W, H, Severity S = 1.0 - clip(R, 0, 1))"]
     
     C --> D{"R >= 1.0 (Wealthy)?"}
     D -->|"Yes (S = 0.0)"| E["Pristine Pass-through<br/>- 0 cracks<br/>- gold_solid_omitted = True<br/>- ceramic_body = input mesh"]
-    D -->|"No (S > 0.0)"| F["Sequential Crack Growth Engine<br/>- Rim Seeds with Poisson spacing<br/>- Correlated walk: 15-20% kinks, σ ≈ 18°<br/>- Heading within ±85° of down<br/>- Stop-on-hit with forward snap & final bend<br/>- θ = 0..2π seam wrap"]
+    D -->|"No (S > 0.0)"| F["Sequential Crack Growth Engine (Shipped in PATCH-02)<br/>- Rim Seeds with Poisson spacing<br/>- Correlated walk: 15-20% kinks, σ ≈ 18°<br/>- Heading within ±85° of down<br/>- Stop-on-hit with forward snap & final bend<br/>- θ = 0..2π seam wrap"]
     
     F --> G["Continuous 2D Polylines [ (u, z) ]"]
     G --> H["Subdivision to step <= W/2"]
-    H --> I["project_crack_paths<br/>- Radial ray casting onto Manifold<br/>- Rim clamp to wall_max - 0.05"]
+    H --> I["project_crack_paths<br/>- Inward normal ray casting onto Manifold<br/>- Rim clamp to wall_max - max(0.5, W/2)"]
     
     I --> J{"mode"}
     J -->|"vein (default)"| K["_build_vein_cutter<br/>- d_i = min(0.75W, 0.5t_i)<br/>- Continuous swept hulls (no point omission)"]
@@ -29,18 +29,20 @@ flowchart TD
     
     K & L --> M["Manifold3D CSG Kernel<br/>ceramic = body - cutter<br/>gold = body ∩ cutter"]
     M --> N["roundtrip_guard<br/>(Watertightness check)"]
-    N --> O["Export Pipeline<br/>- ceramic_body.stl<br/>- gold_seams.stl (omitted if R >= 1.0)<br/>- kintsugi_assembly.3mf"]
+    N --> O["Export Pipeline (multi-material-export)<br/>- ceramic_body.stl<br/>- gold_seams.stl (omitted if R >= 1.0 or gold boolean empty)<br/>- kintsugi_assembly.3mf (single component if gold omitted)"]
 ```
 
 ## Goals / Non-Goals
 
 **Goals:**
-- **Ceramic Envelope Enforcement ($p_5 \ge 1.6\text{ mm}$)**: Preflight validation of wall thickness across the trauma band, rejecting sub-millimeter shells with an informative `ValueError` before any fracture operations begin.
+- **Ceramic Envelope Enforcement ($p_5 \ge 1.6\text{ mm}$)**: Preflight validation of normal wall thickness across `[wall_z_min, wall_z_max]`, rejecting sub-millimeter shells with an informative `ValueError` before any fracture operations begin, uniformly across all modes.
+- **Inward Normal Thickness Probing**: Cast rays along the inward surface normal $-n_i$ from the exterior surface hit to measure true orthogonal wall thickness, avoiding flared-wall radial overestimation.
 - **Continuous, Deep Gold Veins**: Restore $d_i = \min(0.75W, 0.5t_i)$, eliminating cutter point omission (`d < 0.25 mm`), polyline splitting (`_vein_point_groups`), and partial groove fading.
-- **Guaranteed Solid Backing ($\ge 0.8\text{ mm}$)**: Because $d_i \le 0.5t_i$ and $t_i \ge 1.6\text{ mm}$, remaining ceramic backing $t_i - d_i \ge 0.5t_i \ge 0.8\text{ mm}$ is mathematically guaranteed everywhere.
-- **Eliminate Stopping-Short Gaps**: On final collision attempt, near-misses within clearance $R_{\text{clear}}$ at $\ge 30^\circ$ bend onto the nearest point of the hit segment, establishing a shared T-junction vertex.
-- **Natural Organic Fracture Morphology**: Reduce kink rate from 50% to 15–20% and use Gaussian $\sigma \approx 18^\circ$ heading drift to avoid artificial staircase lightning while preserving median tortuosity $\ge 1.05$.
-- **Robust Defensive Safeguards**: Retain `_gold_solid_omitted` in exporter and `seams_omitted` in API for pristine/wealthy runs ($R \ge 1.0$).
+- **Accurately Stated Backing Guarantee**: Nominal backing is $t_i - d_i \ge 0.5 \cdot t_i$ everywhere, and $\ge 0.8\text{ mm}$ wherever $t_i \ge 1.6\text{ mm}$. Minimum groove depth is $\min(0.75 \times 0.8, 0.5 \times 1.6) = 0.6\text{ mm}$, preventing tangency.
+- **Rim Lip Protection**: Clamp rim crack projection at $z = \text{wall\_z\_max} - \max(0.5, W/2)$ to avoid tapered rounded lips.
+- **Preset & UI Cleanup**: Remove `thin_cylinder` from presets and `/api/presets`; remove stale "wall thickness < 1.05 mm" UI text.
+- **Codify & Test PATCH-02 Morphology**: Document and regression test final-attempt near-miss snapping directly to target segments and 15–20% kink probability.
+- **Reconciled Multi-Material Export**: Formalize fallback behavior when $R < 1.0$ and gold boolean is empty.
 
 **Non-Goals:**
 - Supporting single-perimeter spiral vase mode prints (physically incompatible with dual-material inlays).
@@ -50,31 +52,31 @@ flowchart TD
 
 ## Technical Decisions
 
-### Decision 1: Preflight Two-Hit Wall Thickness Sampling ($p_5 \ge 1.6\text{ mm}$)
-- **Chosen**: In `validate_and_load_mesh`, reuse the preflight radial ray grid across the trauma band. Cast inward rays from the exterior hits into the mesh to measure local wall thickness $t$. If the 5th percentile $p_5 < 1.6\text{ mm}$, raise `ValueError(f"Input vessel wall thickness (5th percentile: {p5:.2f} mm) is below the minimum ceramic envelope requirement of 1.60 mm.")`.
-- **Rationale**: Rejects unprintable thin-shell models early and cleanly, preventing degraded cuts or geometry failures downstream.
+### Decision 1: Preflight Inward-Normal Wall Thickness Probing over Wall Range
+- **Chosen**: In `validate_and_load_mesh`, reuse the preflight probe rays across the R-independent wall range `[wall_z_min, wall_z_max]`. From each exterior surface hit $p_i$ with normal $n_i$, cast an inward ray along $-n_i$ into the manifold to find the interior surface hit. The 5th percentile $p_5$ of these inward normal distances must be $\ge 1.6\text{ mm}$. If $p_5 < 1.6\text{ mm}$, raise `ValueError(f"Input vessel wall thickness (5th percentile: {p5:.2f} mm) is below the minimum ceramic envelope requirement of 1.60 mm.")`.
+- **Rationale**: Measuring along the inward surface normal measures true orthogonal wall thickness. Radial horizontal rays overstate thickness on flared vessel walls by $1/\cos(\text{flare})$; at a $45^\circ$ flare, a 1.2 mm wall reads as 1.7 mm radially and would falsely pass. Inward normal probing eliminates this loophole. Evaluating over `[wall_z_min, wall_z_max]` ensures validation is independent of $R$ and works identically during `/api/validate`.
 
 ### Decision 2: Classical Continuous Vein Depth Formula
-- **Chosen**: Set $d_i = \min(0.75W, 0.5t_i)$ along all cutter points. Remove `GROWTH_MIN_DEPTH_MM`, `_vein_point_groups`, and path splitting logic.
-- **Rationale**: For all meshes meeting the $p_5 \ge 1.6\text{ mm}$ requirement, $d_i \le 0.5 \times 1.6\text{ mm} = 0.8\text{ mm}$, leaving at least $0.8\text{ mm}$ ceramic backing. Minimum depth on any valid cut with $W \ge 2.2\text{ mm}$ is $\min(1.65, 0.8) = 0.8\text{ mm} \gg 0.25\text{ mm}$, so cutter spheres are always deeply embedded without tangency or kissing-edge risk.
+- **Chosen**: Set $d_i = \min(0.75W, 0.5t_i)$ along all cutter points, where $t_i$ is normal wall thickness. Remove `GROWTH_MIN_DEPTH_MM`, `_vein_point_groups`, and path splitting logic. Clamp rim projection at $z = \text{wall\_z\_max} - \max(0.5, W/2)$.
+- **Rationale**: Nominal ceramic backing is $t_i - d_i \ge 0.5 \cdot t_i$ everywhere, and $\ge 0.8\text{ mm}$ wherever $t_i \ge 1.6\text{ mm}$. For all valid runs ($W \in [0.8, 2.2]\text{ mm}$), minimum depth is $0.6\text{ mm} \gg 0.25\text{ mm}$, so cutter spheres are always deeply embedded without tangency risk.
 
-### Decision 3: Crack Growth Final-Attempt Snapping & Morphology
-- **Chosen**:
+### Decision 3: Crack Growth Snapping & Morphology Regression Gating
+- **Chosen**: Keep the PATCH-02 growth algorithm (`f77406d` on `main`) and add regression unit tests:
   - Advancing segments within clearance $R_{\text{clear}} = W + 0.8\text{ mm}$ project forward to the earliest hit segment and split it with a shared vertex.
-  - If forward projection fails, on the final attempt the step bends directly onto the nearest point on the hit segment if arrival angle $\ge 30^\circ$ and the bent segment is collision-free.
-  - Sharp kink probability is set to 15–20%, with remaining steps sampled from Gaussian $\sigma \approx 18^\circ$.
-- **Rationale**: Eliminates parallel dead-end gaps where cracks stopped 2–3 mm short, and removes the artificial zig-zag "staircase" look while ensuring planar graphs (0 crossings).
+  - If forward projection cannot reach, on the final attempt the step bends directly onto the nearest point on the hit segment if arrival angle $\ge 30^\circ$ and the bent segment is collision-free.
+  - Sharp kink probability is 20%, with remaining steps sampled from Gaussian $\sigma = 18^\circ$.
+- **Rationale**: Verified in sweeps with 0 crossings across 1,200 seeds; regression tests ensure this behavior does not regress during envelope refactoring.
 
-### Decision 4: Exporter Defensive Safeguards
-- **Chosen**: Keep `_gold_solid_omitted` logic in `kintsugi.py` and `seams_omitted` in `web_app.py`. For $R \ge 1.0$, `gold_solid_omitted` is True and no empty STL is written. For $R < 1.0$ on valid ceramic meshes, `gold_solid_omitted` is False and complete gold STL/3MF components are written.
-- **Rationale**: Cleanly handles intentional zero-crack wealthy runs without generating corrupt 84-byte files.
+### Decision 4: Exporter Defensive Safeguards & UI Consistency
+- **Chosen**: In `kintsugi.py`, `_gold_solid_omitted` logic handles cases where the gold solid has zero volume or triangles. In `web_app.py` and `viewer.js`, when $R \ge 1.0$ the UI shows `Pristine / Wealthy (0 cracks)`. When $R < 1.0$ and seams are omitted, the UI shows `Seams Omitted` cleanly without stale sub-millimeter thickness strings.
+- **Rationale**: Reconciles the multi-material export contract with runtime booleans cleanly.
 
 ## Risks / Trade-offs
 
-- **[Risk] Existing thin-cylinder test fixtures fail preflight validation** → *Mitigation*: Move `thin_cylinder` (0.7–1.2 mm) into negative test cases verifying that `validate_and_load_mesh` raises `ValueError`, and add a dedicated boundary test model with $p_5 = 1.6\text{ mm}$.
-- **[Risk] User uploads a thin vase STL** → *Mitigation*: The web API `/api/validate` catches `ValueError` and surfaces `Not a valid closed solid: Input vessel wall thickness (X.XX mm) is below ceramic envelope requirement of 1.60 mm` in the UI status bar.
+- **[Risk] Normal ray cast returns no interior hit (e.g. at solid base or rim lip)** → *Mitigation*: Fall back to radial thickness or skip unclosed probe rays when computing $p_5$, requiring at least 95% of probe rays to return valid interior hits across the wall range.
+- **[Risk] Tessellated boundary test fragility** → *Mitigation*: Test envelope acceptance on a synthesized cylinder with wall thickness $\approx 1.7\text{ mm}$ and rejection on a cylinder with wall thickness $\approx 1.5\text{ mm}$. Test the exact boundary comparison ($p_5 \ge 1.60$) directly in a unit test of the comparison helper.
 
 ## Migration & Rollback Plan
 
-- **Deployment**: Single commit updating `kintsugi.py`, `sample_models.py`, `web_app.py`, and test fixtures.
+- **Deployment**: Single commit updating `kintsugi.py`, `sample_models.py`, `web_app.py`, test fixtures, and scripts.
 - **Rollback**: Git revert restores prior commit if unexpected regressions occur.

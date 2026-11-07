@@ -1,26 +1,28 @@
 ## 1. Test Scaffolding (TDD)
 
-- [ ] 1.1 Write failing test `test_envelope_rejection_thin_cylinder` in `tests/test_envelope.py` asserting `ValueError` on meshes with $p_5 < 1.6\text{ mm}$
-- [ ] 1.2 Write failing test `test_envelope_boundary_acceptance` in `tests/test_envelope.py` asserting acceptance and fracture on boundary mesh with $p_5 = 1.6\text{ mm}$
-- [ ] 1.3 Write failing test `test_continuous_vein_depth_no_omissions` in `tests/test_kintsugi.py` asserting continuous $d_i = \min(0.75W, 0.5t_i)$ and `gold_solid_omitted == False` on valid runs
-- [ ] 1.4 Write failing test for final-attempt near-miss snapping in `tests/test_crack_growth.py` asserting cracks snap to target segments at $\ge 30^\circ$ rather than stopping short
+- [ ] 1.1 Write failing test `test_envelope_rejection_thin_mesh` in `tests/test_envelope.py` asserting `ValueError` on meshes with $p_5 < 1.6\text{ mm}$ (testing ~1.5 mm cylinder and `thin_cylinder` fixture)
+- [ ] 1.2 Write failing test `test_envelope_acceptance_near_boundary` in `tests/test_envelope.py` asserting acceptance on mesh with $p_5 \approx 1.7\text{ mm}$, plus boundary comparison unit test at $1.60\text{ mm}$
+- [ ] 1.3 Write failing test `test_continuous_vein_depth_no_omissions` in `tests/test_kintsugi.py` asserting $d_i = \min(0.75W, 0.5t_i)$ and absence of point omission splitting
+- [ ] 1.4 Add regression tests in `tests/test_crack_growth.py` for shipped PATCH-02 morphology (final-attempt bend snap, 20% kink rate with $\sigma = 18^\circ$, median tortuosity $\ge 1.05$)
 
-## 2. Preflight Wall Thickness & Envelope Validation
+## 2. Preflight Normal Wall Thickness & Envelope Validation
 
-- [ ] 2.1 Update `validate_and_load_mesh` in `kintsugi.py` to sample two-hit wall thickness via inward rays across the trauma band and reject $p_5 < 1.6\text{ mm}$ with `ValueError`
-- [ ] 2.2 Update `sample_models.py` to move `thin_cylinder` to negative test fixtures and add a boundary model at $t = 1.6\text{ mm}$
-- [ ] 2.3 Update `web_app.py` to handle wall thickness `ValueError` in `/api/validate` and `/api/fracture` gracefully
+- [ ] 2.1 Update `validate_and_load_mesh` in `kintsugi.py` to probe inward surface normal wall thickness across `[wall_z_min, wall_z_max]` and reject $p_5 < 1.6\text{ mm}$ with `ValueError` across all modes
+- [ ] 2.2 Delete `presets/thin_cylinder.stl`, remove `thin_cylinder` from `sample_models.PRESETS`, remove alias, and provide `create_thin_cylinder_fixture` in `sample_models.py` strictly for negative tests
+- [ ] 2.3 Update all `thin_cylinder` call sites: `test_web_api.py:95`, `test_kintsugi.py:1175, 1201`, `spike_contact_sheet.py`, `test_report.py`, and `sweep_out_of_sample.py`
+- [ ] 2.4 Update `web_app.py` `/api/validate` and `/api/fracture` to handle wall thickness `ValueError` cleanly
 
 ## 3. Continuous Vein Depth & Simplified Cutter
 
-- [ ] 3.1 In `kintsugi.py`, restore continuous vein depth $d_i = \min(0.75W, 0.5t_i)$ in `_build_vein_cutter`, removing `GROWTH_MIN_DEPTH_MM`, `_vein_point_groups`, and sub-0.25 mm point omissions
-- [ ] 3.2 Ensure `_gold_solid_omitted` remains False on all valid ceramic runs ($R < 1.0$) and True only on wealthy pass-throughs ($R \ge 1.0$)
-- [ ] 3.3 Update `static/viewer.js` to show `Pristine / Wealthy (0 cracks)` exclusively for $R \ge 1.0$
+- [ ] 3.1 In `kintsugi.py`, restore $d_i = \min(0.75W, 0.5t_i)$ using normal wall thickness, remove `GROWTH_MIN_DEPTH_MM`, `_vein_point_groups`, and sub-0.25 mm point omissions
+- [ ] 3.2 Clamp rim crack projection at $\text{wall\_z\_max} - \max(0.5, W/2)$ in `kintsugi.py` to protect tapered rim lips
+- [ ] 3.3 Ensure `_gold_solid_omitted` remains False on all valid ceramic runs ($R < 1.0$), True on wealthy pass-throughs ($R \ge 1.0$), and handles empty-gold boolean fallback for both STL and 3MF
+- [ ] 3.4 Update `viewer.js:410` to remove stale "wall thickness < 1.05 mm" text and clean up `seams_omitted_reason` in `web_app.py`
 
-## 4. Crack Growth Snapping & Morphology Tuning
+## 4. Morphology Regression Gating & Sweeps
 
-- [ ] 4.1 In `kintsugi.py`, ensure final-attempt near-miss snapping directly bends advancing steps onto target segment at $\ge 30^\circ$
-- [ ] 4.2 In `kintsugi.py`, verify correlated random walk with 15–20% kink probability and $\sigma \approx 18^\circ$ drift, meeting median tortuosity $\ge 1.05$
+- [ ] 4.1 Confirm regression test passes for final-attempt bend snapping and correlated random walk in `tests/test_crack_growth.py`
+- [ ] 4.2 Update test sweep tools (`tools/test_report.py`, `tools/sweep_out_of_sample.py`) to run on supported ceramic presets (`tea_bowl`, `vase`)
 
 ## 5. Verification & Empirical Audit
 

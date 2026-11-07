@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Model preset selection and custom upload
-The web GUI SHALL allow selecting bundled preset 3D models or uploading a custom watertight `.stl` or `.obj` file. Input models must conform to the ceramic vessel envelope ($p_5 \ge 1.6\text{ mm}$).
+The web GUI SHALL allow selecting bundled preset 3D models or uploading a custom watertight `.stl` or `.obj` file. Input models must conform to the ceramic vessel envelope ($p_5 \ge 1.6\text{ mm}$ along inward surface normals across the wall range). The `thin_cylinder` model SHALL NOT be offered in user presets.
 
 #### Scenario: Preset model selection
 - **WHEN** user chooses a preset model (e.g. `Japanese Tea Bowl` or `Tall Vase`) from the dropdown
@@ -29,3 +29,7 @@ The web GUI SHALL provide interactive controls for income ratio $R$, fracture mo
 #### Scenario: Wealthy parameter setting
 - **WHEN** user sets $R \ge 1.0$
 - **THEN** system immediately updates the status label to `Pristine / Wealthy (0 cracks)` and renders the intact ceramic body without gold veins
+
+#### Scenario: Seams omitted feedback
+- **WHEN** fracture response returns `seams_omitted: true` with $R < 1.0$
+- **THEN** system displays `Seams Omitted` in the status indicator without claiming pristine wealth or displaying stale sub-millimeter thickness thresholds
