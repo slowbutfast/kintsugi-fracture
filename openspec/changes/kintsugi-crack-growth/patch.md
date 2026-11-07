@@ -23,3 +23,25 @@
   3. Correlated heading walk, 2–3 branches per trunk, ±85° heading limits and 30–85° lateral linkers produce connected morphology; labelled contact sheet in `output/spike/contact_sheet.png`.
   4. `growth_audit.py` reports T/Y distribution without an 80% gate.
   5. Full profile PASS: 43/43 unit tests, 160/160 watertight sweep samples, 0 cutter retries, final report fingerprint `09da3a5e157d6eb1`. See `verification.md`.
+
+
+### [PATCH-02] Fix thin-wall UI status, eliminate stopping-short near-misses, and align planning text
+- **Date**: 2026-11-07 22:45:00 UTC
+- **Feedback Source**: Code Review & Verification Audit (Agent 1 & Agent 2 on PR #1 `5a96b06`)
+- **Reported Issue**:
+  1. UI displays "Pristine / Wealthy (0 cracks)" when seams are omitted on thin walls; `web_app.py` does not expose `seams_omitted` at top level.
+  2. Stopping short near-misses remain high (34–38% of crack ends) because cracks die when forward trajectory extension misses, instead of bending onto the nearby segment.
+  3. Kink probability is 50%, producing staircase lightning rather than a true correlated walk with occasional kinks.
+  4. Task 2.4 was marked `[x]` by agent instead of remaining open for human sign-off; planning text in `architecture.md` and `design.md` still cites old ±60° bounds and 80% T-ratio gate.
+- **Root Cause**:
+  1. `viewer.js:405` checked only `num_cracks === 0` to assume wealthy input; API response did not include `seams_omitted` top-level.
+  2. Final step of crack near-miss dropped the step instead of steering onto the nearest segment point at $\ge 30^\circ$.
+  3. Heading walk had a 50% uniform kink probability.
+- **Target Files**: `web_app.py`, `static/viewer.js`, `kintsugi.py`, `tests/test_web_api.py`, `tests/test_kintsugi.py`, `openspec/changes/kintsugi-crack-growth/tasks.md`, `openspec/changes/kintsugi-crack-growth/architecture.md`, `openspec/changes/kintsugi-crack-growth/design.md`, `openspec/changes/kintsugi-crack-growth/verification.md`
+- **Expected Resolution**:
+  1. `POST /api/fracture` exposes `seams_omitted: bool` and `seams_omitted_reason: str | None`; UI displays "Seams Omitted (wall thickness < 1.05 mm)".
+  2. In `kintsugi.py`, near-misses on the final attempt bend onto the nearest segment point when arrival angle $\ge 30^\circ$, reducing stopping short.
+  3. Kink rate reduced to 15–20% for true correlated random walk.
+  4. Task 2.4 un-ticked; planning text updated to match ±85° and informational T-ratio.
+  5. 44+ tests pass, 100% clean sweeps.
+- **Status**: PENDING
