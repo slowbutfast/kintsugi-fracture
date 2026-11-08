@@ -35,5 +35,5 @@
   5. Added `test_api_fracture_empty_gold_pipeline`, which patches `_build_vein_cutter` to return an empty manifold and exercises `POST /api/fracture` end-to-end: `seams_omitted: true`, `gold_path: None`, `volumes.gold: 0.0`, `triangle_counts.gold: 0`, and a ceramic STL download.
   6. Docstrings, `tasks.md`, and `verification.md` now state the precise guarantee: nominal backing $\ge 0.5 \cdot t_i$ everywhere, and $\ge 0.8$ mm wherever $t_i \ge 1.6$ mm.
 - **Verification Command**: `.venv/bin/python -m unittest discover -s tests -v`
-- **Verification Proof**: `Ran 57 tests in 246.504s ... OK`; targeted PATCH-01 suites `Ran 54 tests ... OK`; the baseline pre-patch full profile was green with 0 crossings and 0 cutter retries, and the PATCH-01 full-profile audit was still running against the pushed tree at commit time (see `verification.md`).
+- **Verification Proof**: `Ran 57 tests in 246.504s ... OK`; targeted PATCH-01 suites `Ran 54 tests ... OK`; completed full-profile audit PASS: 57/57 unit tests, growth audit 200 seeds with 0 crossings/0 clearance violations, 160/160 clean sweep with 0 retries, noise fold 0/1200 crossings, renders PASS (fingerprint `a92590b1ea14fdbd`; `test_report.py check` confirms it applies to the current tree).
 - **Status**: **RESOLVED** on 2026-11-08
