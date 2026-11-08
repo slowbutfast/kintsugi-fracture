@@ -14,6 +14,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 import web_app
+import sample_models
 from tests import fixtures
 from web_app import app
 
@@ -24,10 +25,18 @@ class WebApiTestCase(unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory(prefix="kintsugi-web-fixtures-")
         cls.bowl = Path(cls._tmp.name) / "bowl.stl"
         cls.open_bowl = Path(cls._tmp.name) / "open_bowl.stl"
+        cls.thin = Path(cls._tmp.name) / "thin_cylinder.stl"
         fixtures.write_bowl(cls.bowl)
         fixtures.write_open_bowl(cls.open_bowl)
+        fixtures.write_stl(
+            fixtures.manifold_to_trimesh(
+                sample_models.create_thin_cylinder_fixture()
+            ),
+            cls.thin,
+        )
         cls.bowl_bytes = cls.bowl.read_bytes()
         cls.open_bowl_bytes = cls.open_bowl.read_bytes()
+        cls.thin_bytes = cls.thin.read_bytes()
         cls.client = TestClient(app)
 
     @classmethod
@@ -42,6 +51,7 @@ class WebApiTestCase(unittest.TestCase):
         presets = body["presets"] if isinstance(body, dict) else body
         ids = {preset["id"] for preset in presets}
         self.assertTrue({"tea_bowl", "benchy", "vase"}.issubset(ids))
+        self.assertNotIn("thin_cylinder", ids)
         for preset in presets:
             self.assertTrue(preset["mesh_url"].startswith("/"))
 
@@ -88,25 +98,40 @@ class WebApiTestCase(unittest.TestCase):
         self.assertEqual(body["parameters"]["mode"], "vein")
         self.assertEqual(body["parameters"]["generator"], "growth")
 
-    def test_api_fracture_thin_wall_seams_omitted(self) -> None:
+    def test_api_fracture_thin_wall_rejected(self) -> None:
         response = self.client.post(
             "/api/fracture",
-            data={
-                "preset": "thin_cylinder",
-                "R": "0.62",
-                "mode": "vein",
-                "seed": "620",
+            files={
+                "file": (
+                    "thin_cylinder.stl",
+                    self.thin_bytes,
+                    "application/octet-stream",
+                )
+            },
+            data={"R": "0.62", "mode": "vein", "seed": "620"},
+        )
+        self.assertEqual(response.status_code, 400, response.text)
+        detail = response.json()["detail"].lower()
+        self.assertIn("wall thickness", detail)
+        self.assertIn("1.60", detail)
+
+    def test_api_validate_thin_wall_rejected(self) -> None:
+        response = self.client.post(
+            "/api/validate",
+            files={
+                "file": (
+                    "thin_cylinder.stl",
+                    self.thin_bytes,
+                    "application/octet-stream",
+                )
             },
         )
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
-        self.assertTrue(body["seams_omitted"])
-        self.assertEqual(
-            body["seams_omitted_reason"], "wall thickness < 1.05 mm"
-        )
-        self.assertEqual(body["num_cracks"], 0)
-        self.assertIsNone(body["downloads"]["gold_stl"])
-        self.assertIsNotNone(body["downloads"]["ceramic_stl"])
+        self.assertFalse(body["valid"])
+        detail = body["detail"].lower()
+        self.assertIn("wall thickness", detail)
+        self.assertIn("1.60", detail)
 
     def test_api_fracture_wealthy(self) -> None:
         response = self.client.post(
@@ -144,6 +169,8 @@ class WebApiTestCase(unittest.TestCase):
         self.assertTrue(body["valid"])
         self.assertEqual(len(body["extents"]), 3)
         self.assertGreater(body["volume"], 0.0)
+        self.assertGreater(body["vertices"], 0)
+        self.assertGreaterEqual(body["wall_thickness_p5"], 1.6)
 
     def test_api_validate_open_mesh(self) -> None:
         response = self.client.post(

@@ -134,7 +134,8 @@ def api_validate(file: UploadFile = File(...)) -> JSONResponse:
         path = Path(tmp) / f"input{suffix}"
         _save_upload(file.file, path)
         try:
-            mesh, manifold = kintsugi.validate_and_load_mesh(path, S=0.0)
+            validation = kintsugi.validate_and_load_mesh(path, S=0.0)
+            mesh, manifold = validation
         except ValueError as exc:
             return JSONResponse(
                 {
@@ -142,6 +143,8 @@ def api_validate(file: UploadFile = File(...)) -> JSONResponse:
                     "detail": str(exc),
                     "extents": None,
                     "volume": None,
+                    "vertices": None,
+                    "wall_thickness_p5": None,
                 }
             )
         return JSONResponse(
@@ -150,6 +153,10 @@ def api_validate(file: UploadFile = File(...)) -> JSONResponse:
                 "detail": "Watertight closed solid",
                 "extents": [float(value) for value in mesh.extents],
                 "volume": float(manifold.volume()),
+                "vertices": int(len(mesh.vertices)),
+                "wall_thickness_p5": float(
+                    validation.probe.get("wall_thickness_p5", 0.0)
+                ),
             }
         )
 
@@ -204,9 +211,10 @@ def api_fracture(
     }
 
     seams_omitted = bool(result.get("seams_omitted", False))
-    seams_omitted_reason = (
-        "wall thickness < 1.05 mm" if seams_omitted else None
-    )
+    # Seams are only omitted when the gold boolean is degenerate; valid ceramic
+    # runs (R < 1.0) must always yield continuous gold.  Do not report a wall
+    # thickness threshold here: sub-1.6 mm inputs are rejected before fracture.
+    seams_omitted_reason = "gold solid is empty" if seams_omitted else None
 
     return JSONResponse(
         {

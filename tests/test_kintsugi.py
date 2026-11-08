@@ -998,6 +998,51 @@ class KintsugiTestCase(unittest.TestCase):
         self.assertTrue(any(value > z_max for value in terminals))
         self.assertTrue(any(value < z_max for value in terminals))
 
+    def test_projection_clamps_rim_and_records_normal_thickness(self) -> None:
+        import kintsugi
+
+        class _Hit:
+            def __init__(self, distance: float, normal):
+                self.distance = distance
+                self.normal = normal
+
+        class _FakeManifold:
+            def __init__(self) -> None:
+                self.starts: list[tuple] = []
+                self.calls = 0
+
+            def ray_cast(self, start, end):
+                self.starts.append((start, end))
+                self.calls += 1
+                if self.calls % 2 == 1:
+                    # Radial exterior probe: two hits, farthest at t=0.5.
+                    return [_Hit(0.1, (1.0, 0.0, 0.0)),
+                            _Hit(0.5, (1.0, 0.0, 0.0))]
+                # Inward normal probe: first interior surface at t=0.3.
+                return [_Hit(0.3, (1.0, 0.0, 0.0))]
+
+        mesh = trimesh.load(self.bowl, process=False)
+        params = {
+            "rbar": 30.0,
+            "z_min": 0.0,
+            "z_max": 100.0,
+            "wall_z_max": 50.0,
+            "W": 1.4,
+            "median_two_hit_wall": 3.0,
+        }
+        fake = _FakeManifold()
+        projected, _, _ = kintsugi.project_crack_paths(
+            [[np.array([0.0, 55.0])]], fake, params, mesh
+        )
+
+        expected_z = 50.0 - max(0.5, 0.5 * 1.4)
+        self.assertAlmostEqual(float(fake.starts[0][0][2]), expected_z)
+        ray_length = 2.0 * float(np.max(mesh.extents)) + 10.0
+        expected_thickness = (
+            0.3 * ray_length + kintsugi.ENVELOPE_NORMAL_EPSILON_MM
+        )
+        self.assertAlmostEqual(float(projected[0][0]["t"]), expected_thickness)
+
     def test_ray_tiebreak_direction(self) -> None:
         import kintsugi
 
@@ -1105,7 +1150,7 @@ class KintsugiTestCase(unittest.TestCase):
         self.assertGreater(total_t_junctions, 0, "no T-junction-like nodes")
         self.assertLessEqual(total_t_junctions, total_junctions)
 
-    def test_vein_depth_and_kissing_prevention(self) -> None:
+    def test_continuous_vein_depth_no_omissions(self) -> None:
         import kintsugi
 
         width = 2.0
@@ -1113,25 +1158,34 @@ class KintsugiTestCase(unittest.TestCase):
         projected = [
             [
                 {"p": np.array([0.0, 0.0, 5.0]), "n": normal, "t": 3.0, "u": 0.0, "z": 5.0},
-                {"p": np.array([2.0, 0.0, 5.0]), "n": normal, "t": 1.2, "u": 2.0, "z": 5.0},
-                {"p": np.array([4.0, 0.0, 5.0]), "n": normal, "t": 1.0, "u": 4.0, "z": 5.0},
-                {"p": np.array([6.0, 0.0, 5.0]), "n": normal, "t": 0.9, "u": 6.0, "z": 5.0},
+                {"p": np.array([2.0, 0.0, 5.0]), "n": normal, "t": 1.6, "u": 2.0, "z": 5.0},
+                {"p": np.array([4.0, 0.0, 5.0]), "n": normal, "t": 1.65, "u": 4.0, "z": 5.0},
+                {"p": np.array([6.0, 0.0, 5.0]), "n": normal, "t": 2.4, "u": 6.0, "z": 5.0},
                 {"p": np.array([8.0, 0.0, 5.0]), "n": normal, "t": 3.0, "u": 8.0, "z": 5.0},
             ]
         ]
 
-        groups = kintsugi._vein_point_groups(projected, width)
-        self.assertEqual(len(groups), 2, "omitted points must split the cutter")
+        self.assertAlmostEqual(kintsugi._vein_depth(width, 3.0), 1.5)
+        self.assertAlmostEqual(kintsugi._vein_depth(width, 1.6), 0.8)
+
+        groups = kintsugi._vein_cutter_points(projected, width)
+        densified = kintsugi._densify_projected_paths(projected, 0.5 * width)
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(
+            len(groups[0]),
+            len(densified[0]),
+            "continuous vein cutter must not omit any projected point",
+        )
         seen_t = []
-        for group in groups:
-            self.assertGreater(len(group), 0)
-            for point in group:
-                depth = float(point["depth"])
-                self.assertGreaterEqual(depth, 0.25 - 1e-9)
-                self.assertLessEqual(depth, min(0.75 * width, 0.5 * point["t"], point["t"] - 0.8) + 1e-9)
-                seen_t.append(float(point["t"]))
-        self.assertNotIn(1.0, seen_t)
-        self.assertNotIn(0.9, seen_t)
+        for point in groups[0]:
+            thickness = float(point["t"])
+            seen_t.append(thickness)
+            self.assertAlmostEqual(
+                float(point["depth"]),
+                min(0.75 * width, 0.5 * thickness),
+            )
+        self.assertIn(1.6, seen_t)
+        self.assertIn(1.65, seen_t)
 
         cutter = kintsugi._build_vein_cutter(
             projected,
@@ -1168,72 +1222,64 @@ class KintsugiTestCase(unittest.TestCase):
         self.assertGreater(float(np.std(terminals)), 0.5)
         self.assertGreater(float(np.ptp(terminals)), 0.5)
 
-    def test_thin_wall_model_manifold(self) -> None:
+    def test_thin_wall_fixture_rejected_by_envelope(self) -> None:
         import kintsugi
         import sample_models
 
-        builder = getattr(sample_models, "thin_cylinder", None)
-        self.assertIsNotNone(builder, "thin_cylinder preset builder is missing")
+        builder = getattr(sample_models, "create_thin_cylinder_fixture", None)
+        self.assertIsNotNone(builder, "thin_cylinder fixture builder is missing")
         thin_manifold = builder()
         thin_mesh = kintsugi.manifold_to_trimesh(thin_manifold)
         with tempfile.TemporaryDirectory() as tmp:
             input_path = Path(tmp) / "thin_cylinder.stl"
             input_path.write_bytes(trimesh.exchange.stl.export_stl(thin_mesh))
-            result = kintsugi.generate_kintsugi_mesh(
-                input_path,
-                Path(tmp) / "out",
-                R=0.0,
-                mode="vein",
-                seed=0,
-                generator="growth",
-            )
-            self.assertIsNotNone(result["gold_path"])
-            for key in ("ceramic_path", "gold_path"):
-                mesh = trimesh.load(result[key], process=True)
-                self.assertTrue(mesh.is_watertight, key)
-                self.assertTrue(mesh.is_volume, key)
-                self.assertEqual(_bad_edge_count(mesh), 0, key)
+            with self.assertRaises(ValueError) as ctx:
+                kintsugi.validate_and_load_mesh(input_path, S=0.0)
+            self.assertIn("wall thickness", str(ctx.exception).lower())
 
     def test_empty_gold_solid_omits_file_and_warns(self) -> None:
         import kintsugi
-        import sample_models
 
-        builder = getattr(sample_models, "create_thin_cylinder_preset", None)
-        self.assertIsNotNone(builder, "thin_cylinder preset builder is missing")
-        thin_mesh = kintsugi.manifold_to_trimesh(builder())
+        _, manifold = kintsugi.validate_and_load_mesh(self.bowl, 0.0)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            input_path = root / "thin_cylinder.stl"
-            input_path.write_bytes(trimesh.exchange.stl.export_stl(thin_mesh))
-            out = root / "out"
-            out.mkdir()
-            stale_gold = out / "gold_seams.stl"
+            stale_gold = root / "gold_seams.stl"
             stale_gold.write_bytes(b"stale seam from an earlier run")
-            three_mf = out / "kintsugi_assembly.3mf"
+            three_mf = root / "kintsugi_assembly.3mf"
 
-            result = kintsugi.generate_kintsugi_mesh(
-                input_path,
-                out,
-                R=0.62,
-                mode="vein",
-                seed=620,
-                output_3mf_path=three_mf,
-                generator="growth",
+            result = kintsugi.export_kintsugi_stl(
+                manifold,
+                mf.Manifold(),
+                root / "ceramic_body.stl",
+                stale_gold,
             )
-
             self.assertTrue(result["seams_omitted"])
             self.assertIsNone(result["gold_path"])
             self.assertFalse(stale_gold.exists())
-            self.assertFalse((out / "gold_seams.stl").exists())
-            self.assertEqual(result["num_cracks"], 0)
-            self.assertEqual(result["triangle_counts"]["gold"], 0)
-            self.assertAlmostEqual(result["volumes"]["gold"], 0.0)
-            ceramic = trimesh.load(result["ceramic_path"], process=True)
-            self.assertTrue(ceramic.is_watertight)
+            self.assertTrue((root / "ceramic_body.stl").exists())
 
+            kintsugi.export_kintsugi_3mf(manifold, mf.Manifold(), three_mf)
             names = _object_names(_parse_3mf(three_mf))
             self.assertIn("CeramicBody", names)
             self.assertNotIn("GoldSeams", names)
+
+    def test_valid_ceramic_run_keeps_gold(self) -> None:
+        import kintsugi
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = kintsugi.generate_kintsugi_mesh(
+                self.bowl,
+                tmp,
+                R=0.6,
+                mode="vein",
+                seed=620,
+                generator="growth",
+            )
+            self.assertFalse(result["seams_omitted"])
+            self.assertIsNotNone(result["gold_path"])
+            self.assertGreater(result["num_cracks"], 0)
+            self.assertGreater(result["triangle_counts"]["gold"], 0)
+            self.assertGreater(result["volumes"]["gold"], 0.0)
 
     def test_growth_tortuosity_floor(self) -> None:
         import kintsugi

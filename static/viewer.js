@@ -342,7 +342,15 @@ async function validateCustomFile(file) {
     if (body.valid) {
       state.uploadValid = true;
       ui.fracture.disabled = false;
-      updateMeshStatus("Watertight ✓", "success");
+      const wall =
+        typeof body.wall_thickness_p5 === "number"
+          ? ` | Wall: ${body.wall_thickness_p5.toFixed(2)} mm`
+          : "";
+      const vertices =
+        typeof body.vertices === "number"
+          ? ` | Vertices: ${body.vertices}`
+          : "";
+      updateMeshStatus(`Watertight ✓${vertices}${wall}`, "success");
       setStatus(`Ready · ${file.name}`);
     } else {
       state.uploadValid = false;
@@ -407,8 +415,7 @@ async function fracture() {
     const currentRatio = Number(ui.ratio.value);
     let label;
     if (seamsOmitted && currentRatio < 1.0) {
-      const reason = body.seams_omitted_reason || "wall thickness < 1.05 mm";
-      label = `Seams Omitted (${reason})`;
+      label = "Seams Omitted";
     } else if (body.num_cracks === 0) {
       label = "Pristine / Wealthy (0 cracks)";
     } else {
