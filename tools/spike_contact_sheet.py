@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the 12-case growth-mode Kintsugi verification contact sheet.
+"""Render the 12-case Kintsugi verification contact sheet.
 
 Rows are the two supported ceramic models (Japanese Tea Bowl and Tall Vase) at
 R = 0.0, 0.2 and 0.5 with two seeds each.  Columns are a perspective side view,
@@ -11,7 +11,7 @@ effects, so it must not be imported here.
 
 Usage:
     .venv/bin/python tools/spike_contact_sheet.py [--output PATH]
-        [--repo PATH] [--panel-px INT]
+        [--generator {growth,shard,both}] [--repo PATH] [--panel-px INT]
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = "reports/contact_sheet.png"
+DEFAULT_SHARD_OUTPUT = "reports/contact_sheet_shard.png"
 DEFAULT_PANEL_PX = 340
 
 BACKGROUND = (30, 34, 44)
@@ -361,6 +362,7 @@ def _generate_case(
     case: dict,
     panel_px: int,
     title_color,
+    generator: str = "growth",
 ):
     with tempfile.TemporaryDirectory(prefix="kintsugi_spike_") as temp:
         work = Path(temp)
@@ -373,7 +375,7 @@ def _generate_case(
             R=case["R"],
             mode="vein",
             seed=case["seed"],
-            generator="growth",
+            generator=generator,
         )
 
         ceramic = _load_mesh(trimesh, result["ceramic_path"])
@@ -413,12 +415,88 @@ def _generate_case(
         return panels, info
 
 
+def _render_sheet(
+    kintsugi,
+    sample_models,
+    trimesh,
+    repo: Path,
+    cases,
+    columns,
+    panel_px: int,
+    output: Path,
+    generator: str,
+) -> None:
+    row_count, column_count = len(cases), len(columns)
+    sheet = np.zeros(
+        (row_count * panel_px, column_count * panel_px, 3), dtype=np.float64
+    )
+    summaries = []
+
+    for row_index, case in enumerate(cases):
+        title_color = ROW_TITLE_COLORS[row_index % len(ROW_TITLE_COLORS)]
+        try:
+            panels, info = _generate_case(
+                kintsugi,
+                sample_models,
+                trimesh,
+                repo,
+                case,
+                panel_px,
+                title_color,
+                generator=generator,
+            )
+        except Exception as exc:  # keep the full contact-sheet matrix
+            info = {
+                "label": case["label"],
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            blank = render(
+                [],
+                size=panel_px,
+                title_bar=title_color,
+                label=case["label"],
+            )
+            panels = [blank.copy() for _ in columns]
+
+        info["generator"] = generator
+        summaries.append(info)
+        y0 = row_index * panel_px
+        for column_index, panel in enumerate(panels):
+            x0 = column_index * panel_px
+            sheet[
+                y0 : y0 + panel_px, x0 : x0 + panel_px
+            ] = panel
+
+    write_png(output, sheet)
+    print(output)
+    for info in summaries:
+        prefix = f"[{info['generator']}] {info['label']}"
+        if info.get("error"):
+            print(f"{prefix} | ERROR {info['error']}")
+        else:
+            print(
+                f"{prefix} | cracks={info['num_cracks']}"
+                f" ceramic_faces={info['ceramic_faces']}"
+                f" gold_faces={info['gold_faces']}"
+            )
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--output",
-        default=DEFAULT_OUTPUT,
-        help=f"Output PNG path (default: {DEFAULT_OUTPUT})",
+        default=None,
+        help=(
+            "Output PNG path (default: reports/contact_sheet.png for growth, "
+            "reports/contact_sheet_shard.png for shard; 'both' writes the "
+            "growth and shard sheets side by side in reports/)"
+        ),
+    )
+    parser.add_argument(
+        "--generator",
+        choices=("growth", "shard", "both"),
+        default="growth",
+        help="Crack generator to render (default: growth)",
     )
     parser.add_argument(
         "--repo",
@@ -450,59 +528,39 @@ def main(argv=None) -> int:
             file=sys.stderr,
         )
 
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-
-    row_count, column_count = len(CASES), len(COLUMNS)
-    sheet = np.zeros(
-        (row_count * panel_px, column_count * panel_px, 3), dtype=np.float64
-    )
-    summaries = []
-
-    for row_index, case in enumerate(CASES):
-        title_color = ROW_TITLE_COLORS[row_index % len(ROW_TITLE_COLORS)]
-        try:
-            panels, info = _generate_case(
-                kintsugi,
-                sample_models,
-                trimesh,
-                repo,
-                case,
-                panel_px,
-                title_color,
-            )
-        except Exception as exc:  # keep the full contact-sheet matrix
-            info = {
-                "label": case["label"],
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-            blank = render(
-                [],
-                size=panel_px,
-                title_bar=title_color,
-                label=case["label"],
-            )
-            panels = [blank.copy() for _ in COLUMNS]
-
-        summaries.append(info)
-        y0 = row_index * panel_px
-        for column_index, panel in enumerate(panels):
-            x0 = column_index * panel_px
-            sheet[
-                y0 : y0 + panel_px, x0 : x0 + panel_px
-            ] = panel
-
-    write_png(output, sheet)
-    print(output)
-    for info in summaries:
-        if info.get("error"):
-            print(f"{info['label']} | ERROR {info['error']}")
+    if args.output is None:
+        if args.generator == "growth":
+            plans = [("growth", Path(DEFAULT_OUTPUT))]
+        elif args.generator == "shard":
+            plans = [("shard", Path(DEFAULT_SHARD_OUTPUT))]
         else:
-            print(
-                f"{info['label']} | cracks={info['num_cracks']}"
-                f" ceramic_faces={info['ceramic_faces']}"
-                f" gold_faces={info['gold_faces']}"
+            plans = [
+                ("growth", Path(DEFAULT_OUTPUT)),
+                ("shard", Path(DEFAULT_SHARD_OUTPUT)),
+            ]
+    else:
+        output = Path(args.output)
+        if args.generator == "both":
+            shard_output = output.with_name(
+                f"{output.stem}_shard{output.suffix}"
             )
+            plans = [("growth", output), ("shard", shard_output)]
+        else:
+            plans = [(args.generator, output)]
+
+    for generator, output in plans:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        _render_sheet(
+            kintsugi,
+            sample_models,
+            trimesh,
+            repo,
+            CASES,
+            COLUMNS,
+            panel_px,
+            output,
+            generator,
+        )
     return 0
 
 
