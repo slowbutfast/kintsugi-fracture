@@ -321,7 +321,7 @@ def run_noise_fold(tmp: Path) -> dict:
 
 
 def run_renders(tmp: Path) -> dict:
-    """Render the 4 x 3 growth contact sheet into reports/contact_sheet.png."""
+    """Render the 12-case (36-panel) growth contact sheet."""
     output = REPO / "reports" / "contact_sheet.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
@@ -336,7 +336,8 @@ def run_renders(tmp: Path) -> dict:
     ok = proc.returncode == 0 and output.exists() and output.stat().st_size > 0
     return {
         "status": "pass" if ok else "error",
-        "criteria": "12-panel contact sheet written to reports/contact_sheet.png",
+        "criteria": "12-case (36-panel) contact sheet written to "
+                    "reports/contact_sheet.png",
         "duration_s": round(time.perf_counter() - started, 1),
         "path": output.relative_to(REPO).as_posix(),
         "bytes": output.stat().st_size if output.exists() else 0,

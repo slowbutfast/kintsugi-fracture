@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Render a 4 x 3 contact sheet for the growth-mode Kintsugi spike.
+"""Render the 12-case growth-mode Kintsugi verification contact sheet.
 
-Rows are Tea Bowl at R=0.0, Tea Bowl at R=0.2, Tall Vase at R=0.2 and the
-synthetic thin-wall cylinder at R=0.0.  Columns are a perspective side view,
+Rows are the two supported ceramic models (Japanese Tea Bowl and Tall Vase) at
+R = 0.0, 0.2 and 0.5 with two seeds each.  Columns are a perspective side view,
 a top rim view and an isolated gold-seam view.
 
 The rasteriser below is a self-contained pure-numpy z-buffer implementation
@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_OUTPUT = "output/spike/contact_sheet.png"
+DEFAULT_OUTPUT = "reports/contact_sheet.png"
 DEFAULT_PANEL_PX = 340
 
 BACKGROUND = (30, 34, 44)
@@ -36,10 +36,10 @@ GOLD = (230, 175, 40)
 
 # One title-bar colour per contact-sheet row so rows are distinguishable.
 ROW_TITLE_COLORS = [
-    (0, 88, 238),      # Luna blue - tea bowl, undamaged
-    (0, 120, 215),     # lighter blue - tea bowl, fractured
-    (112, 192, 64),    # XP green - tall vase
-    (230, 138, 0),     # XP warning amber - thin cylinder
+    (0, 88, 238),      # Luna blue
+    (0, 120, 215),     # lighter blue
+    (112, 192, 64),    # XP green
+    (230, 138, 0),     # XP warning amber
 ]
 
 COLUMNS = [
@@ -48,35 +48,23 @@ COLUMNS = [
     ("gold", -60.0, 20.0),
 ]
 
+_MODEL_CASES = (
+    ("TEA BOWL", "tea_bowl", "tea_bowl"),
+    ("TALL VASE", "vase", "small_vase"),
+)
+
+# 2 supported ceramic models x 3 severities x 2 seeds = 12 rendered cases.
 CASES = [
     {
-        "label": "TEA BOWL R=0",
-        "preset": "tea_bowl",
-        "builder": "tea_bowl",
-        "R": 0.0,
-        "seed": 0,
-    },
-    {
-        "label": "TEA BOWL R=0.2",
-        "preset": "tea_bowl",
-        "builder": "tea_bowl",
-        "R": 0.2,
-        "seed": 1,
-    },
-    {
-        "label": "TALL VASE R=0.2",
-        "preset": "vase",
-        "builder": "small_vase",
-        "R": 0.2,
-        "seed": 0,
-    },
-    {
-        "label": "THIN CYLINDER R=0.5",
-        "preset": None,
-        "builder": None,
-        "R": 0.5,
-        "seed": 0,
-    },
+        "label": f"{label} R={ratio:g} S{seed}",
+        "preset": preset,
+        "builder": builder,
+        "R": ratio,
+        "seed": seed,
+    }
+    for label, preset, builder in _MODEL_CASES
+    for ratio in (0.0, 0.2, 0.5)
+    for seed in (0, 1)
 ]
 
 
@@ -350,16 +338,6 @@ def _load_mesh(trimesh, path: str | Path):
     return loaded
 
 
-def _thin_cylinder_stl(sample_models, trimesh, work: Path):
-    builder = getattr(sample_models, "thin_cylinder", None)
-    fallback = builder is None
-    if builder is None:
-        builder = sample_models.small_vase
-    return _write_manifold_stl(
-        builder(), trimesh, work / "thin_cylinder.stl"
-    ), fallback
-
-
 def _preset_stl(sample_models, trimesh, repo: Path, case, work: Path) -> Path:
     path = repo / "presets" / f"{case['preset']}.stl"
     if path.exists():
@@ -386,20 +364,7 @@ def _generate_case(
 ):
     with tempfile.TemporaryDirectory(prefix="kintsugi_spike_") as temp:
         work = Path(temp)
-        if case.get("preset") is None:
-            input_path, fallback = _thin_cylinder_stl(
-                sample_models, trimesh, work
-            )
-            if fallback:
-                print(
-                    "warning: sample_models.thin_cylinder() is unavailable; "
-                    "falling back to small_vase()",
-                    file=sys.stderr,
-                )
-        else:
-            input_path = _preset_stl(
-                sample_models, trimesh, repo, case, work
-            )
+        input_path = _preset_stl(sample_models, trimesh, repo, case, work)
 
         output_dir = work / "out"
         result = kintsugi.generate_kintsugi_mesh(
@@ -506,7 +471,7 @@ def main(argv=None) -> int:
                 panel_px,
                 title_color,
             )
-        except Exception as exc:  # keep the full 12-panel matrix
+        except Exception as exc:  # keep the full contact-sheet matrix
             info = {
                 "label": case["label"],
                 "error": f"{type(exc).__name__}: {exc}",

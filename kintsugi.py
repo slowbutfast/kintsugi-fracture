@@ -68,6 +68,15 @@ RECOMMENDED_CIRCULAR_SEGMENTS = 16
 RASTER_Z_LEVELS = 9
 RADIAL_PROBES = 48
 
+# Ceramic vessel envelope: 5th-percentile two-hit wall thickness measured
+# along inward surface normals across the full wall range.  Below this floor
+# the continuous vein depth d_i = min(0.75 W, 0.5 t_i) cannot preserve a safe
+# ceramic backing, so the input is rejected before any fracture work begins.
+CERAMIC_MIN_WALL_THICKNESS_MM = 1.6
+WALL_THICKNESS_PERCENTILE = 5.0
+ENVELOPE_Z_LEVELS = 41
+ENVELOPE_NORMAL_EPSILON_MM = 1e-3
+
 
 # ---------------------------------------------------------------------------
 # Metric validation and parameter table
@@ -361,6 +370,100 @@ def _probe_wall_range(
     }
 
 
+def wall_envelope_passes(p5_thickness_mm: float) -> bool:
+    """Return True when a 5th-percentile wall thickness meets the envelope."""
+    return float(p5_thickness_mm) + 1e-9 >= CERAMIC_MIN_WALL_THICKNESS_MM
+
+
+def _probe_normal_wall_thickness(
+    manifold: mf.Manifold,
+    mesh: trimesh.Trimesh,
+    wall_z_min: float,
+    wall_z_max: float,
+    *,
+    z_levels: int = ENVELOPE_Z_LEVELS,
+    theta_samples: int = RADIAL_PROBES,
+    epsilon: float = ENVELOPE_NORMAL_EPSILON_MM,
+) -> dict:
+    """Measure two-hit wall thickness along inward surface normals.
+
+    Radial rays first locate the exterior surface.  From that hit, a second
+    ray travels along the inward surface normal ``-n_i`` to the interior
+    surface.  Normal probing measures true orthogonal wall thickness: on a
+    flared vessel a horizontal radial ray overstates the wall by ``1/cos`` of
+    the flare angle and would let sub-envelope inputs pass.
+    """
+    center = np.asarray(mesh.bounding_box.centroid, dtype=np.float64)
+    cx, cy = float(center[0]), float(center[1])
+    ray_length = 2.0 * float(np.max(mesh.extents)) + 10.0
+    thetas = np.linspace(0.0, 2.0 * math.pi, theta_samples, endpoint=False)
+    # Sample the interior of the wall range: the exact rim plane can produce
+    # tangent hits on the horizontal lip rather than a wall cross-section.
+    zs = np.linspace(
+        float(wall_z_min), float(wall_z_max), max(int(z_levels), 3) + 2
+    )[1:-1]
+
+    thicknesses: list[float] = []
+    misses = 0
+    total = 0
+    for z in zs:
+        for theta in thetas:
+            total += 1
+            start = np.array([cx, cy, z], dtype=np.float64)
+            direction = np.array([math.cos(theta), math.sin(theta), 0.0])
+            end = start + direction * ray_length
+            hits = manifold.ray_cast(
+                tuple(start.tolist()), tuple(end.tolist())
+            )
+            if len(hits) < 2:
+                misses += 1
+                continue
+            farthest = max(hits, key=lambda hit: float(hit.distance))
+            position = start + direction * (
+                float(farthest.distance) * ray_length
+            )
+            normal = np.asarray(farthest.normal, dtype=np.float64)
+            norm = float(np.linalg.norm(normal))
+            if norm < 1e-12:
+                misses += 1
+                continue
+            normal /= norm
+            if float(np.dot(normal, direction)) < 0.0:
+                normal = -normal
+
+            inward = -normal
+            probe_start = position + inward * epsilon
+            probe_end = probe_start + inward * ray_length
+            inner_hits = manifold.ray_cast(
+                tuple(probe_start.tolist()), tuple(probe_end.tolist())
+            )
+            if not inner_hits:
+                misses += 1
+                continue
+            distance = min(
+                float(hit.distance) for hit in inner_hits
+            ) * ray_length
+            thicknesses.append(float(distance + epsilon))
+
+    values = np.asarray(thicknesses, dtype=np.float64)
+    if len(values):
+        p5 = float(np.percentile(values, WALL_THICKNESS_PERCENTILE))
+        median = float(np.median(values))
+        minimum = float(np.min(values))
+    else:
+        p5 = 0.0
+        median = 0.0
+        minimum = 0.0
+    return {
+        "wall_thickness_p5": p5,
+        "wall_thickness_median": median,
+        "wall_thickness_min": minimum,
+        "normal_wall_samples": int(len(values)),
+        "normal_wall_misses": int(misses),
+        "normal_wall_probes": int(total),
+    }
+
+
 @dataclass
 class MeshValidation:
     """Validated mesh plus the radial probe computed during validation.
@@ -429,6 +532,23 @@ def validate_and_load_mesh(
         )
 
     wall_probe = _probe_wall_range(manifold, mesh)
+    wall_envelope: dict = {}
+    if bool(wall_probe.get("has_wall", True)):
+        wall_envelope = _probe_normal_wall_thickness(
+            manifold,
+            mesh,
+            float(wall_probe["wall_z_min"]),
+            float(wall_probe["wall_z_max"]),
+        )
+        p5 = float(wall_envelope["wall_thickness_p5"])
+        if not wall_envelope_passes(p5):
+            raise ValueError(
+                "Input vessel wall thickness "
+                f"(5th percentile: {p5:.2f} mm) is below the minimum ceramic "
+                f"envelope requirement of {CERAMIC_MIN_WALL_THICKNESS_MM:.2f} "
+                "mm. Input vessels must have p5 >= 1.60 mm across the full "
+                "wall range to guarantee a safe ceramic backing."
+            )
     return MeshValidation(
         mesh=mesh,
         manifold=manifold,
@@ -436,6 +556,7 @@ def validate_and_load_mesh(
             "rbar": float(rbar),
             "miss_fraction": float(miss_fraction),
             **wall_probe,
+            **wall_envelope,
         },
     )
 
@@ -725,7 +846,6 @@ def _truncate_polyline_z(
 # ---------------------------------------------------------------------------
 GROWTH_CLEARANCE_MM = 0.8
 GROWTH_MIN_INCIDENCE_DEG = 30.0
-GROWTH_MIN_DEPTH_MM = 0.25
 _GROWTH_DOWN = -0.5 * math.pi
 # Allow near-horizontal descent so branches can link distant trunks.
 _GROWTH_MIN_HEADING = _GROWTH_DOWN - math.radians(85.0)
@@ -2167,10 +2287,10 @@ def project_crack_paths(
             direction = np.array([math.cos(theta), math.sin(theta), 0.0])
             ray_z = float(z)
             if ray_z > wall_z_max:
-                # Rim-bound points deliberately overshoot; cast just below the
-                # horizontal rim plane so the cutter pierces the lip without
+                # Rim-bound points deliberately overshoot; cast below any
+                # rounded lip taper so the cutter pierces the rim without
                 # creating coplanar faces on the top surface.
-                ray_z = wall_z_max - 0.05
+                ray_z = wall_z_max - max(0.5, 0.5 * float(params["W"]))
             start = np.array([cx, cy, ray_z], dtype=np.float64)
             end = start + direction * ray_length
             hits = manifold.ray_cast(
@@ -2197,13 +2317,46 @@ def project_crack_paths(
             if float(np.dot(normal, direction)) < 0.0:
                 normal = -normal
 
+            inward = -normal
+            probe_start = position + inward * ENVELOPE_NORMAL_EPSILON_MM
+            probe_end = probe_start + inward * ray_length
+            inner_hits = manifold.ray_cast(
+                tuple(probe_start.tolist()), tuple(probe_end.tolist())
+            )
+            radial_thickness = None
             if len(hits) >= 2:
-                wall = (float(farthest.distance) - float(hits[-2].distance)) * ray_length
+                radial_thickness = (
+                    float(farthest.distance) - float(hits[-2].distance)
+                ) * ray_length
+            normal_thickness = None
+            if inner_hits:
+                normal_thickness = (
+                    min(float(hit.distance) for hit in inner_hits)
+                    * ray_length
+                    + ENVELOPE_NORMAL_EPSILON_MM
+                )
+
+            if normal_thickness is not None:
+                # Record t_i as the orthogonal distance along the inward
+                # surface normal -n_i, but never let it exceed the radial
+                # two-hit measurement.  Taking the minimum is conservative and
+                # prevents a flared-wall overestimate if the normal probe is
+                # unclosed and returns a farther interior hit.
+                wall = normal_thickness
+                if radial_thickness is not None:
+                    wall = min(normal_thickness, radial_thickness)
                 single_hit = False
+            elif radial_thickness is not None:
+                # No inward-normal sample.  Keep the radial value but mark it
+                # single-hit so the path's median normal thickness bounds it
+                # in the fill pass below.
+                wall = radial_thickness
+                single_hit = True
+                single_hits += 1
             else:
-                # F13: a one-hit ray has no inner-wall thickness.  Use the
-                # path's median two-hit thickness (filled in below), falling
-                # back to the global two-hit median.
+                # F13: no usable two-hit measurement.  Use the path's median
+                # two-hit thickness (filled in below), falling back to the
+                # global two-hit median.
                 wall = global_median_wall
                 single_hit = True
                 single_hits += 1
@@ -2222,8 +2375,10 @@ def project_crack_paths(
         if len(current) >= 1:
             projected_paths.append(current)
 
-    # Fill any residual single-hit points from their own path's median
-    # two-hit wall thickness, with the global median as a fallback.
+    # Fill residual single-hit points from their own path's median two-hit
+    # wall thickness, with the global median as a fallback.  The measured value
+    # is kept when it is smaller, so a radial-only fallback can never introduce
+    # a flared-wall overestimate.
     for path in projected_paths:
         two_hit_walls = [p["t"] for p in path if not p["single_hit"]]
         path_median = (
@@ -2233,7 +2388,9 @@ def project_crack_paths(
         )
         for point in path:
             if point["single_hit"]:
-                point["t"] = max(float(path_median), 0.2)
+                point["t"] = max(
+                    min(float(point["t"]), float(path_median)), 0.2
+                )
 
     in_band_miss_fraction = (
         band_misses / band_points if band_points else 0.0
@@ -2311,40 +2468,41 @@ def _densify_projected_paths(
 
 
 def _vein_depth(width: float, thickness: float) -> float:
-    return min(
-        0.75 * float(width),
-        0.5 * float(thickness),
-        float(thickness) - GROWTH_CLEARANCE_MM,
-    )
+    """Classical continuous vein depth ``d_i = min(0.75 W, 0.5 t_i)``.
+
+    Nominal ceramic backing is ``t_i - d_i >= 0.5 * t_i`` everywhere, and
+    ``>= 0.8 mm`` wherever ``t_i >= 1.6 mm``.
+    """
+    return min(0.75 * float(width), 0.5 * float(thickness))
 
 
-def _vein_point_groups(
+def _vein_cutter_points(
     projected_paths: Sequence[Sequence[dict]], W: float
 ) -> list[list[dict]]:
-    """Split projected paths into printable runs with a legal vein depth.
+    """Return every densified cutter point with its inset sphere centre.
 
-    Depth is ``d_i = min(0.75 W, 0.5 t_i, t_i - 0.8 mm)``.  Points whose depth
-    falls below ``0.25 mm`` are omitted, which splits the polyline and prevents
-    a cutter sphere from becoming tangent to the outer ceramic surface.
+    There is no point-omission or polyline-splitting logic.  With
+    ``d_i = min(0.75 W, 0.5 t_i)`` the nominal ceramic backing is
+    ``t_i - d_i >= 0.5 * t_i`` everywhere, and ``>= 0.8 mm`` wherever
+    ``t_i >= 1.6 mm``.  The 5th-percentile envelope bounds the wall
+    statistically; individual tapered-lip points may be thinner, but every
+    point is still retained so each crack path remains one continuous channel.
     """
     width = float(W)
     radius = 0.5 * width
-    groups: list[list[dict]] = []
     step = 0.5 * width
+    groups: list[list[dict]] = []
     for path in _densify_projected_paths(projected_paths, step):
-        current: list[dict] = []
+        if not path:
+            continue
+        points: list[dict] = []
         for point in path:
             thickness = float(point["t"])
             depth = _vein_depth(width, thickness)
-            if depth < GROWTH_MIN_DEPTH_MM - 1e-9:
-                if current:
-                    groups.append(current)
-                    current = []
-                continue
             center = np.asarray(point["p"], dtype=np.float64) - (
                 depth - radius
             ) * np.asarray(point["n"], dtype=np.float64)
-            current.append(
+            points.append(
                 {
                     "p": np.asarray(point["p"], dtype=np.float64),
                     "n": np.asarray(point["n"], dtype=np.float64),
@@ -2353,27 +2511,20 @@ def _vein_point_groups(
                     "center": center,
                 }
             )
-        if current:
-            groups.append(current)
+        groups.append(points)
     return groups
 
 
 def _vein_carved_path_count(
     projected_paths: Sequence[Sequence[dict]], W: float
 ) -> int:
-    """Count source paths that retain at least one printable cutter point."""
-    width = float(W)
-    step = 0.5 * width
-    count = 0
-    for path in _densify_projected_paths(projected_paths, step):
-        for point in path:
-            if (
-                _vein_depth(width, float(point["t"]))
-                >= GROWTH_MIN_DEPTH_MM - 1e-9
-            ):
-                count += 1
-                break
-    return count
+    """Count source paths that retain at least one cutter point."""
+    step = 0.5 * float(W)
+    return sum(
+        1
+        for path in _densify_projected_paths(projected_paths, step)
+        if path
+    )
 
 
 def _build_vein_cutter(
@@ -2390,16 +2541,15 @@ def _build_vein_cutter(
     overlap (the path step is at most ``W/2`` and the radius is ``W/2``), so
     they are unioned directly; building convex hulls from already-overlapping
     spheres creates shared faces and kiss edges.  A hull is added only when a
-    consecutive-centre gap exceeds the sphere diameter.  Points whose vein
-    depth is below 0.25 mm are omitted by ``_vein_point_groups``, splitting the
-    cutter into independently manifold runs.
+    consecutive-centre gap exceeds the sphere diameter.  Every projected point
+    is retained, so each crack path becomes one continuous gold channel.
     """
     radius = 0.5 * float(W)
     sphere_cache: dict[tuple[float, float, float], tuple[mf.Manifold, np.ndarray]] = {}
     path_solids: list[mf.Manifold] = []
     global_gap_hulls: list[mf.Manifold] = []
 
-    for group in _vein_point_groups(projected_paths, W):
+    for group in _vein_cutter_points(projected_paths, W):
         spheres: list[tuple[mf.Manifold, np.ndarray, tuple[float, float, float]]] = []
         for point in group:
             center = point["center"]
@@ -2706,8 +2856,13 @@ def _gold_solid_omitted(
         return True
     if hasattr(gold, "num_tri") and gold.num_tri() == 0:
         return True
-    if gold_mesh is not None and len(gold_mesh.faces) == 0:
+    if float(gold.volume()) <= 1e-6:
         return True
+    if gold_mesh is not None:
+        if len(gold_mesh.faces) == 0:
+            return True
+        if abs(float(gold_mesh.volume)) <= 1e-6:
+            return True
     return False
 
 
