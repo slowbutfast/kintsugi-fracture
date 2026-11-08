@@ -9,7 +9,7 @@
 
 - [x] 2.1 Update `validate_and_load_mesh` in `kintsugi.py` to probe inward surface normal wall thickness across `[wall_z_min, wall_z_max]` and reject $p_5 < 1.6\text{ mm}$ with `ValueError` across all modes
 - [x] 2.2 Delete `presets/thin_cylinder.stl`, remove `thin_cylinder` from `sample_models.PRESETS`, remove alias, and provide `create_thin_cylinder_fixture` in `sample_models.py` strictly for negative tests
-- [x] 2.3 Update all `thin_cylinder` call sites: `test_web_api.py:95`, `test_kintsugi.py:1175, 1201`, `spike_contact_sheet.py`, `test_report.py`, and `sweep_out_of_sample.py`
+- [x] 2.3 Update all `thin_cylinder` call sites: `test_web_api.py:95`, `test_kintsugi.py:1175, 1201`, `spike_contact_sheet.py`, and `test_report.py` (`sweep_out_of_sample.py` verified: no change needed)
 - [x] 2.4 Update `web_app.py` `/api/validate` and `/api/fracture` to handle wall thickness `ValueError` cleanly
 
 ## 3. Continuous Vein Depth & Simplified Cutter
@@ -30,3 +30,12 @@
 - [ ] 5.2 Generate 12-case visual contact sheet (`reports/contact_sheet.png`) and conduct human sign-off against Kintsugi references
 - [ ] 5.3 Verify multi-material 3MF import in Bambu Studio / PrusaSlicer
 - [x] 5.4 Populate `verification.md` with Requirement Adherence Matrix, resolved assumptions, and verbatim execution logs
+
+## Patch 01: Flared-Wall Normal Tests, Tapered-Lip Audit & Defensive Pipeline Verification
+
+- [ ] P01.1 Scaffold flared-cone fixture pair in `tests/test_envelope.py`: 1.2 mm normal wall (45° flare) rejected, 2.0 mm accepted
+- [ ] P01.2 Apply conservative normal-ray miss fallback $\min(t_{\text{normal}}, t_{\text{radial}})$ in `kintsugi.py`
+- [ ] P01.3 Add tapered-lip test fixture and verify continuous gold carving, reporting minimum carved depth and ceramic backing
+- [ ] P01.4 In `kintsugi.py`, replace exact float compare in `_gold_solid_omitted` with `1e-6` volume tolerance
+- [ ] P01.5 Add end-to-end empty-gold pipeline test in `tests/test_web_api.py` with patched empty cutter
+- [ ] P01.6 Update docstrings, `patch.md`, and `verification.md` with exact backing/depth wording and test results
