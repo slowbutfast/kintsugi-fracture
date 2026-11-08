@@ -229,6 +229,70 @@ class WebApiTestCase(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 413, response.text)
 
+    def test_mobile_ui_and_menus_markup_served(self) -> None:
+        html_response = self.client.get("/")
+        self.assertEqual(html_response.status_code, 200, html_response.text)
+        html = html_response.text
+
+        menu_ids = (
+            "menu-file",
+            "menu-presets",
+            "menu-mode",
+            "menu-help",
+            "menu-upload",
+            "menu-fracture",
+            "menu-download-ceramic",
+            "menu-download-gold",
+            "menu-download-3mf",
+            "menu-reset-camera",
+            "menu-about",
+            "mobile-tabs",
+            "export-badge",
+            "help-dialog",
+        )
+        for element_id in menu_ids:
+            self.assertIn(f'id="{element_id}"', html, element_id)
+
+        for tab in ("model", "fracture", "export"):
+            self.assertIn(f'data-tab="{tab}"', html, tab)
+            self.assertIn(f'data-tab-panel="{tab}"', html, tab)
+
+        for preserved_id in (
+            "preset-select",
+            "file-input",
+            "generator-select",
+            "mode-select",
+            "ratio-slider",
+            "seed-input",
+            "fracture-button",
+            "download-ceramic",
+            "download-gold",
+            "download-3mf",
+            "viewport",
+            "status-operation",
+            "status-mesh",
+            "status-kernel",
+        ):
+            self.assertIn(f'id="{preserved_id}"', html, preserved_id)
+
+        css_response = self.client.get("/xp.css")
+        self.assertEqual(css_response.status_code, 200, css_response.text)
+        css = css_response.text
+        for token in (
+            "100dvh",
+            ".menu-dropdown",
+            ".mobile-tabs",
+            "font-size: 16px",
+            "order: -1",
+        ):
+            self.assertIn(token, css, token)
+
+        js_response = self.client.get("/viewer.js")
+        self.assertEqual(js_response.status_code, 200, js_response.text)
+        js = js_response.text
+        for token in ("ResizeObserver", "switchMobileTab", "syncMenuChecks"):
+            self.assertIn(token, js, token)
+
     def test_job_retention(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp) / "web"

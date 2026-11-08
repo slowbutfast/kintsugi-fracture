@@ -32,12 +32,16 @@ Component volume is a filter for crumbs only. Thin needles attached to larger sh
 The system SHALL export aligned binary STL files in the input coordinate frame, and the files SHALL remain watertight after a disk round-trip.
 
 #### Scenario: Inequality fracture export
-- **WHEN** $R < 1.0$
+- **WHEN** $R < 1.0$ and the gold solid is non-empty
 - **THEN** system writes binary STL files for both ceramic body and gold seams, and reloading each from disk with `trimesh.load(..., process=True)` reports `is_watertight == True` and `is_volume == True`
+
+#### Scenario: Empty gold solid fallback when R < 1.0
+- **WHEN** $R < 1.0$ and the complementary gold boolean has zero triangles or volume
+- **THEN** system writes `ceramic_body.stl`, does **not** write `gold_seams.stl`, unlinks any stale file at `gold_seams.stl`, returns `gold_path: None`, `seams_omitted: True`, and sets `triangle_counts.gold: 0` and `volumes.gold: 0.0`
 
 #### Scenario: Wealthy pass-through export
 - **WHEN** $R \ge 1.0$
-- **THEN** system writes the validated input mesh to `ceramic_body.stl`, does **not** write `gold_seams.stl`, deletes any pre-existing file at the gold output path so that a stale seam from an earlier run cannot be paired with the pristine body, and returns `gold_path: None` in the result dict
+- **THEN** system writes the validated input mesh to `ceramic_body.stl`, does **not** write `gold_seams.stl`, deletes any pre-existing file at the gold output path so that a stale seam from an earlier run cannot be paired with the pristine body, and returns `gold_path: None` and `seams_omitted: False` in the result dict
 
 #### Scenario: Export sliver repair
 - **WHEN** a CSG output contains a sub-`10 nm` sliver edge that binary-STL float32 would turn into a four-face edge
@@ -55,12 +59,11 @@ The system SHALL export aligned binary STL files in the input coordinate frame, 
 The system SHALL optionally export a single 3MF Core-spec package in which one build item references one parent object whose `<components>` list the named mesh objects `CeramicBody` and `GoldSeams`, so slicers load it as one object with two parts. The package SHALL be written directly with `zipfile` and `xml.etree`, because `trimesh`'s scene exporter writes each geometry as a separate build item (verified with trimesh 5.2.0).
 
 #### Scenario: Multi-material 3MF export
-- **WHEN** `output_3mf_path` is specified and $R < 1.0$
+- **WHEN** `output_3mf_path` is specified, $R < 1.0$, and the gold solid is non-empty
 - **THEN** system writes a `.3mf` whose `3D/3dmodel.model` contains exactly one `<build><item>`, referencing an object whose `<components>` reference two mesh objects named `CeramicBody` and `GoldSeams`, with `unit="millimeter"` and identity transforms
 
-#### Scenario: Single-volume wealthy 3MF export
-- **WHEN** `output_3mf_path` is specified and $R \ge 1.0$
+#### Scenario: Single-volume fallback 3MF export
+- **WHEN** `output_3mf_path` is specified, and either $R \ge 1.0$ or the gold solid is omitted
 - **THEN** system writes a `.3mf` with a single build item referencing only the `CeramicBody` mesh object
 
 Extruder or filament assignment requires slicer-specific metadata (`Metadata/Slic3r_PE_model.config`, `Metadata/model_settings.config`). That is out of scope; filaments are assigned per part in the slicer.
-

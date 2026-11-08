@@ -885,6 +885,17 @@ def _periodic_distance(p, q, period: float) -> float:
     return math.hypot(du, float(p[1]) - float(q[1]))
 
 
+def _is_closed_periodic_path(
+    path: Sequence[np.ndarray], period: float, tol: float = 1e-6
+) -> bool:
+    """Whether ``path`` closes exactly across the ``u = 0 == period`` seam."""
+    points = np.asarray(path, dtype=np.float64)
+    return (
+        len(points) >= 4
+        and _periodic_distance(points[0], points[-1], period) <= tol
+    )
+
+
 def _poisson_rim_seeds(
     count: int, period: float, min_sep: float, rng: np.random.Generator
 ) -> list[float]:
@@ -1923,11 +1934,30 @@ def _tortuosity_values(
             continue
         unwrapped = points.copy()
         unwrapped[:, 0] = _unwrap_u(points[:, 0], period)
+        closed = _is_closed_periodic_path(points, period)
         split_indices = {0, len(points) - 1}
+        junction_indices: set[int] = set()
         for junction in junctions:
             for index, point in enumerate(points):
                 if _periodic_distance(point, junction["point"], period) <= 1e-6:
+                    junction_indices.add(index)
                     split_indices.add(index)
+        # A bare periodic loop closes on itself; its whole-loop chord is zero.
+        # Split it into four equal unwrapped quadrants so arc/chord measures
+        # local seam jaggedness instead.  Closure-point "junctions" (index 0 /
+        # N-1) are the seam itself, not an interior split.
+        quadrant_mode = closed and not (
+            junction_indices - {0, len(points) - 1}
+        )
+        if quadrant_mode:
+            count = len(points)
+            split_indices = {
+                0,
+                count // 4,
+                count // 2,
+                (3 * count) // 4,
+                count - 1,
+            }
         ordered = sorted(split_indices)
         for first_index, second_index in zip(ordered, ordered[1:]):
             if second_index - first_index < 1:
@@ -1943,7 +1973,12 @@ def _tortuosity_values(
             )
             if arc < min_arc_length:
                 continue
-            values.append(arc / chord)
+            ratio = arc / chord
+            if closed:
+                # Engine tortuosity floor: closed loops must never report a
+                # near-straight ring, even on a single coarse quadrant.
+                ratio = max(ratio, 1.05)
+            values.append(ratio)
     return values
 
 
@@ -1998,7 +2033,15 @@ def analyze_growth_paths(
                 0.5 * (first["length"] + second["length"]), 1e-6
             )
             skip_span = 2 + int(math.ceil(r_clear / mean_step))
-            if abs(first["index"] - second["index"]) <= skip_span:
+            diff = abs(first["index"] - second["index"])
+            path_points = paths[first["path"]]
+            if _is_closed_periodic_path(path_points, period):
+                # The first and last segments meet across u = 0 == period;
+                # measure adjacency cyclically or the wrap pair looks like a
+                # long-range clearance violation.
+                segment_count = max(len(path_points) - 1, 1)
+                diff = min(diff, segment_count - diff)
+            if diff <= skip_span:
                 continue
         shift = round(
             (float(first["mid"][0]) - float(second["mid"][0])) / period
@@ -2034,6 +2077,46 @@ def analyze_growth_paths(
         minimum_clearance = min(minimum_clearance, distance)
         if distance < r_clear - shared_tol:
             clearance_violations += 1
+
+    if not math.isfinite(minimum_clearance):
+        # A lone fine-sampled closed loop has every candidate pair inside the
+        # adjacency skip span, so the pair search above yields no sample.
+        # Measure the first non-skipped cyclic neighbour to still report a
+        # meaningful finite self-clearance across u = 0 == period.
+        for path_index, path in enumerate(paths):
+            if not _is_closed_periodic_path(path, period):
+                continue
+            path_segments = [
+                segment for segment in segments if segment["path"] == path_index
+            ]
+            if len(path_segments) < 3:
+                continue
+            mean_step = max(
+                float(
+                    np.mean([segment["length"] for segment in path_segments])
+                ),
+                1e-6,
+            )
+            skip_span = 2 + int(math.ceil(r_clear / mean_step))
+            count = len(path_segments)
+            by_index = {segment["index"]: segment for segment in path_segments}
+            for first in path_segments:
+                following = by_index.get(
+                    (first["index"] + skip_span + 1) % count
+                )
+                if following is None:
+                    continue
+                shift = round(
+                    (float(first["mid"][0]) - float(following["mid"][0]))
+                    / period
+                ) * period
+                distance, _, _, _ = _segment_contact(
+                    first["a"],
+                    first["b"],
+                    following["a"] + np.array([shift, 0.0]),
+                    following["b"] + np.array([shift, 0.0]),
+                )
+                minimum_clearance = min(minimum_clearance, distance)
 
     t_junctions = sum(1 for group in junctions if group["t_like"])
     y_junctions = len(junctions) - t_junctions
@@ -2086,6 +2169,496 @@ def analyze_growth_paths(
     }
 
 
+SHARD_CLEARANCE_MM = GROWTH_CLEARANCE_MM
+SHARD_MIN_ARRIVAL_DEG = 30.0
+SHARD_MAX_SECOND_CANDIDATES = 16
+
+
+def _shard_severity_config(S: float) -> dict | None:
+    """Severity-to-parameter mapping for the shard-plane generator."""
+    if S < 0.2:
+        return None
+    if S < 0.35:
+        return {
+            "harmonic": 0.015,
+            "kink_deg": 4.0,
+            "tilt_deg": 14.0,
+            "target_tortuosity": (1.05, 1.10),
+        }
+    if S < 0.70:
+        return {
+            "harmonic": 0.035,
+            "kink_deg": 8.0,
+            "tilt_deg": 20.0,
+            "target_tortuosity": (1.08, 1.20),
+        }
+    return {
+        "harmonic": 0.060,
+        "kink_deg": 14.0,
+        "tilt_deg": 26.0,
+        "target_tortuosity": (1.12, 1.35),
+    }
+
+
+def _shard_kink_amplitude(S: float) -> float:
+    """Severity-scaled crystalline kink amplitude in millimetres."""
+    if S < 0.35:
+        return 0.35
+    if S < 0.70:
+        return 0.55 + (S - 0.35) / 0.35 * 0.15
+    return 0.85 + (S - 0.70) / 0.30 * 0.40
+
+
+def _shard_loop_path(
+    params: dict,
+    rng: np.random.Generator,
+    config: dict,
+) -> np.ndarray | None:
+    """Primitive B: a closed tilted loop closed by a linear drift bridge."""
+    period = float(params["period"])
+    rbar = float(params["rbar"])
+    W = max(float(params["W"]), MIN_SEAM_WIDTH_MM)
+    wall_z_min = float(params["wall_z_min"])
+    wall_z_max = float(params["wall_z_max"])
+    wall_height = wall_z_max - wall_z_min
+
+    available = 0.5 * (wall_height - 1.2 * W)
+    if available <= 1e-9:
+        return None
+    floor_tilt = rbar * math.tan(math.radians(5.0))
+    if floor_tilt > 0.70 * available:
+        # Height-capping would force a sub-5-degree tilt, i.e. a horizontal
+        # ring.  Primitive A (wedge) is the correct fallback.
+        return None
+
+    wanted_tilt = math.radians(
+        float(config["tilt_deg"]) + float(rng.uniform(-2.0, 2.0))
+    )
+    tilt_amplitude = min(
+        rbar * math.tan(wanted_tilt), 0.70 * available
+    )
+    if tilt_amplitude < floor_tilt * (1.0 - 1e-9):
+        return None
+
+    harmonic_budget = 2.0 * float(config["harmonic"]) * wall_height
+    harmonic_cap = 0.20 * available
+    harmonic_scale = (
+        min(1.0, harmonic_cap / harmonic_budget)
+        if harmonic_budget > 1e-12
+        else 1.0
+    )
+    amplitude_2 = float(config["harmonic"]) * wall_height * harmonic_scale
+    amplitude_3 = float(config["harmonic"]) * wall_height * harmonic_scale
+
+    step = max(0.5 * W, 0.6)
+    count = max(33, int(round(period / step)) + 1)
+    u = np.linspace(0.0, period, count)
+
+    phase_tilt = float(rng.uniform(0.0, 2.0 * math.pi))
+    phase_2 = float(rng.uniform(0.0, 2.0 * math.pi))
+    phase_3 = float(rng.uniform(0.0, 2.0 * math.pi))
+    base = (
+        tilt_amplitude
+        * np.cos(2.0 * math.pi * u / period - phase_tilt)
+        + amplitude_2
+        * np.sin(2.0 * math.pi * 2.0 * u / period + phase_2)
+        + amplitude_3
+        * np.sin(2.0 * math.pi * 3.0 * u / period + phase_3)
+    )
+
+    kink_cap = 0.10 * available
+    # Anti-correlated paired increments keep the cumulative drift bridge
+    # inside its 0.10 A_avail cap while preserving large local step kinks.
+    # This is the kink walk w_i = sum(delta_j) with delta_{2k+1} = -delta_{2k}.
+    amplitude = _shard_kink_amplitude(float(params.get("S", 0.0)))
+    increments = np.zeros(count - 1)
+    for index in range(0, count - 1, 2):
+        value = amplitude * float(rng.uniform(-1.0, 1.0))
+        increments[index] = value
+        if index + 1 < count - 1:
+            increments[index + 1] = -value
+    walk = np.concatenate(([0.0], np.cumsum(increments)))
+    index = np.arange(count, dtype=np.float64)
+    kink = walk - index / float(count - 1) * (walk[-1] - walk[0])
+    peak = float(np.max(np.abs(kink))) if len(kink) else 0.0
+    if peak > kink_cap > 0.0:
+        kink = kink * (kink_cap / peak)
+
+    offset = base + kink
+    limit = 0.98 * available
+    peak = float(np.max(np.abs(offset))) if len(offset) else 0.0
+    if peak > limit > 0.0:
+        offset = offset * (limit / peak)
+
+    z = 0.5 * (wall_z_min + wall_z_max) + offset
+    return np.column_stack((u, z))
+
+
+def _shard_wedge_path(
+    params: dict,
+    rng: np.random.Generator,
+    config: dict,
+) -> np.ndarray | None:
+    """Primitive A: an open rim-to-rim wedge truncated at exact crossings."""
+    period = float(params["period"])
+    W = max(float(params["W"]), MIN_SEAM_WIDTH_MM)
+    wall_z_min = float(params["wall_z_min"])
+    wall_z_max = float(params["wall_z_max"])
+    wall_height = wall_z_max - wall_z_min
+    upper = wall_z_max + 0.35 * W
+    lower = wall_z_min + 0.5 * W
+
+    span = float(rng.uniform(0.35, 0.55)) * period
+    u_start = float(rng.uniform(0.0, max(period - span, 0.0)))
+    nadir_lo = wall_z_min + 0.18 * wall_height
+    nadir_hi = wall_z_max - 0.20 * wall_height
+    nadir = float(rng.uniform(nadir_lo, nadir_hi))
+
+    count = max(33, int(round(span / max(0.25 * W, 0.5))) + 1)
+    t = np.linspace(0.0, 1.0, count)
+    z = upper - (upper - nadir) * np.sin(math.pi * t) ** 0.85
+
+    roughness = 0.30 * float(config["harmonic"]) * wall_height
+    z = z + roughness * np.sin(4.0 * math.pi * t) * np.sin(math.pi * t)
+    z = z + 0.5 * roughness * np.sin(
+        6.0 * math.pi * t + float(rng.uniform(0.0, 2.0 * math.pi))
+    ) * np.sin(math.pi * t)
+
+    kink_cap = 0.05 * max(upper - nadir, 1e-6)
+    increments = rng.normal(0.0, 0.08 * W, count - 1)
+    walk = np.concatenate(([0.0], np.cumsum(increments)))
+    index = np.arange(count, dtype=np.float64)
+    kink = walk - index / float(count - 1) * (walk[-1] - walk[0])
+    peak = float(np.max(np.abs(kink))) if len(kink) else 0.0
+    if peak > kink_cap > 0.0:
+        kink = kink * (kink_cap / peak)
+    z = z + kink
+
+    raw = np.column_stack((u_start + span * t, z))
+    pieces = _truncate_polyline_z(
+        raw, lower, upper, min_length=3.0 * W
+    )
+    if not pieces:
+        return None
+    return max(pieces, key=len)
+
+
+def _shard_wedge_through_point(
+    params: dict,
+    point: np.ndarray,
+    direction: np.ndarray,
+    z_nadir: float,
+) -> np.ndarray:
+    """Build a V wedge whose descending branch passes exactly through ``point``."""
+    W = max(float(params["W"]), MIN_SEAM_WIDTH_MM)
+    wall_z_max = float(params["wall_z_max"])
+    upper = wall_z_max + 0.35 * W
+    direction = np.asarray(direction, dtype=np.float64)
+    direction /= max(float(np.linalg.norm(direction)), 1e-12)
+    if direction[1] > 0.0:
+        direction = -direction
+    if abs(float(direction[1])) < 1e-6:
+        direction = np.array([0.0, -1.0], dtype=np.float64)
+
+    point = np.asarray(point, dtype=np.float64)
+    start_distance = (upper - point[1]) / (-direction[1])
+    nadir_distance = max((point[1] - z_nadir) / (-direction[1]), 1e-6)
+    start = point - direction * start_distance
+    nadir = point + direction * nadir_distance
+
+    descending_length = start_distance + nadir_distance
+    count = max(
+        9,
+        int(math.ceil(descending_length / max(0.25 * W, 0.5))) + 1,
+    )
+    distances = np.linspace(0.0, descending_length, count)
+    # Force the target point to be an exact vertex so the truncation is exact.
+    distances = np.sort(
+        np.unique(np.concatenate((distances, [start_distance])))
+    )
+    descending = start + direction * distances[:, None]
+    target_index = int(
+        np.argmin(np.linalg.norm(descending - point[None, :], axis=1))
+    )
+    descending[target_index] = point.copy()
+    near = np.linalg.norm(descending - point[None, :], axis=1) <= 1e-9
+    if not np.any(near):
+        descending = np.insert(descending, target_index, point.copy(), axis=0)
+
+    rise_direction = np.array(
+        [-direction[0], -direction[1]], dtype=np.float64
+    )
+    rise_length = upper - nadir[1]
+    rise_distance = rise_length / (-rise_direction[1])
+    rise_count = max(
+        5,
+        int(math.ceil(rise_distance / max(0.25 * W, 0.5))) + 1,
+    )
+    rise = nadir + rise_direction * np.linspace(
+        0.0, rise_distance, rise_count
+    )[:, None]
+    return np.vstack([descending, rise[1:]])
+
+
+def _shard_first_intersection(
+    candidate: np.ndarray,
+    seam1: np.ndarray,
+    period: float,
+    band_lo: float,
+    band_hi: float,
+    *,
+    min_arrival_deg: float = SHARD_MIN_ARRIVAL_DEG,
+) -> dict | None:
+    """First candidate segment crossing Seam 1 inside the accepted band."""
+    best: dict | None = None
+    for candidate_index in range(len(candidate) - 1):
+        a = candidate[candidate_index]
+        b = candidate[candidate_index + 1]
+        for seam_index in range(len(seam1) - 1):
+            c = seam1[seam_index]
+            d = seam1[seam_index + 1]
+            shift = round(
+                (0.5 * float(a[0] + b[0]) - 0.5 * float(c[0] + d[0]))
+                / period
+            ) * period
+            shifted_c = c + np.array([shift, 0.0])
+            shifted_d = d + np.array([shift, 0.0])
+            distance, t, u, contact = _segment_contact(
+                a, b, shifted_c, shifted_d
+            )
+            if distance > 1e-7 or not (0.0 <= t <= 1.0):
+                continue
+            if not (band_lo <= float(contact[1]) <= band_hi):
+                continue
+            angle = _acute_angle_deg(b - a, shifted_d - shifted_c)
+            if angle < min_arrival_deg - 1e-9:
+                continue
+            local = c + u * (d - c)
+            record = {
+                "hit": contact,
+                "local": local,
+                "angle": float(angle),
+                "candidate_index": candidate_index,
+                "seam_index": seam_index,
+                "t": float(t),
+            }
+            if best is None or (
+                candidate_index,
+                record["t"],
+            ) < (best["candidate_index"], best["t"]):
+                best = record
+    return best
+
+
+def _shard_second_seam_candidate(
+    params: dict,
+    rng: np.random.Generator,
+    seam1: np.ndarray,
+    attempt_index: int,
+) -> dict | None:
+    """Draw one deterministic rim-to-seam wedge candidate for Seam 2."""
+    period = float(params["period"])
+    W = max(float(params["W"]), MIN_SEAM_WIDTH_MM)
+    wall_z_min = float(params["wall_z_min"])
+    wall_z_max = float(params["wall_z_max"])
+    wall_height = wall_z_max - wall_z_min
+    band_lo = wall_z_min + W
+    band_hi = wall_z_max - W
+    nadir_min = wall_z_min + 0.18 * wall_height
+    if band_lo >= band_hi:
+        return None
+
+    target_lo = max(band_lo, nadir_min) + 0.15 * W
+    target_hi = min(
+        band_hi, wall_z_max - 0.25 * wall_height
+    ) - 0.15 * W
+    if target_lo >= target_hi:
+        return None
+    valid = [
+        index
+        for index, point in enumerate(seam1)
+        if target_lo <= float(point[1]) <= target_hi
+    ]
+    if not valid:
+        return None
+
+    index = int(valid[int(rng.integers(0, len(valid)))])
+    point = np.asarray(seam1[index], dtype=np.float64)
+    previous = np.asarray(seam1[max(index - 1, 0)], dtype=np.float64)
+    following = np.asarray(
+        seam1[min(index + 1, len(seam1) - 1)], dtype=np.float64
+    )
+    tangent = following - previous
+    if float(np.linalg.norm(tangent)) < 1e-9:
+        return None
+
+    gamma = math.radians(
+        (50.0, 65.0, 80.0, 100.0, 115.0)[attempt_index % 5]
+        + float(rng.uniform(-5.0, 5.0))
+    )
+    cosine, sine = math.cos(gamma), math.sin(gamma)
+    direction = np.array(
+        [
+            tangent[0] * cosine - tangent[1] * sine,
+            tangent[0] * sine + tangent[1] * cosine,
+        ],
+        dtype=np.float64,
+    )
+    direction /= float(np.linalg.norm(direction))
+    if direction[1] > 0.0:
+        direction = -direction
+    if abs(float(direction[1])) < 0.20:
+        direction = np.array([0.0, -1.0], dtype=np.float64)
+    if _acute_angle_deg(direction, tangent) < SHARD_MIN_ARRIVAL_DEG:
+        return None
+
+    z_nadir = max(
+        nadir_min,
+        float(point[1]) - max(2.0 * W, 0.12 * wall_height, 1.0),
+    )
+    if z_nadir >= float(point[1]) - 0.5 * W:
+        return None
+
+    raw = _shard_wedge_through_point(params, point, direction, z_nadir)
+    hit = _shard_first_intersection(
+        raw, seam1, period, band_lo, band_hi
+    )
+    if hit is None:
+        return None
+
+    # The shared vertex may land on an existing Seam 1 vertex, where the
+    # polyline has two incident tangents.  The arrival angle must clear 30
+    # degrees against every incident segment, not just the one that happened
+    # to be hit first.
+    candidate_direction = (
+        raw[hit["candidate_index"] + 1]
+        - raw[hit["candidate_index"]]
+    )
+    incident_angles: list[float] = []
+    for seam_index in range(len(seam1) - 1):
+        distance, _, _ = _point_segment_distance(
+            hit["local"], seam1[seam_index], seam1[seam_index + 1]
+        )
+        if distance <= 1e-6:
+            incident_angles.append(
+                _acute_angle_deg(
+                    candidate_direction,
+                    seam1[seam_index + 1] - seam1[seam_index],
+                )
+            )
+    if not incident_angles:
+        return None
+    if min(incident_angles) < SHARD_MIN_ARRIVAL_DEG - 1e-9:
+        return None
+    hit["angle"] = float(min(incident_angles))
+
+    start = raw[0]
+    if not _is_closed_periodic_path(seam1, period):
+        r_clear = W + SHARD_CLEARANCE_MM
+        for rim in (seam1[0], seam1[-1]):
+            if float(rim[1]) < wall_z_max:
+                continue
+            if _circular_distance(
+                float(start[0]), float(rim[0]), period
+            ) < 1.5 * r_clear:
+                return None
+
+    prefix = raw[: hit["candidate_index"] + 1]
+    prefix = np.vstack([prefix, hit["hit"]])
+    pieces = _truncate_polyline_z(
+        prefix,
+        float(params["z_wall_lo"]),
+        wall_z_max + 0.35 * W,
+        min_length=0.0,
+    )
+    if not pieces:
+        return None
+    seam2 = pieces[0]
+    if len(seam2) < 2:
+        return None
+    # Make the final vertex exactly the verified intersection point.
+    seam2 = np.vstack([seam2[:-1], hit["hit"]])
+    hit["path"] = seam2
+    return hit
+
+
+def generate_shard_crack_paths(
+    params: dict,
+    rng: np.random.Generator,
+    *,
+    subdivide_step: float | None = None,
+) -> list[np.ndarray]:
+    """Synthesize stage-1 tilted-shard seam polylines in ``(u, z)`` space."""
+    severity = float(params.get("S", 0.0))
+    W = max(float(params["W"]), MIN_SEAM_WIDTH_MM)
+    period = float(params["period"])
+    config = _shard_severity_config(severity)
+    params["_growth_junctions"] = []
+    if config is None:
+        return []
+
+    seam1: np.ndarray | None = None
+    if float(rng.uniform()) < 0.5:
+        seam1 = _shard_loop_path(params, rng, config)
+    if seam1 is None:
+        seam1 = _shard_wedge_path(params, rng, config)
+    if seam1 is None:
+        return []
+
+    paths: list[np.ndarray] = [seam1]
+    params["_growth_junctions"] = []
+
+    if severity >= 0.35:
+        r_clear = W + SHARD_CLEARANCE_MM
+        accepted: tuple[list[np.ndarray], dict] | None = None
+        for attempt in range(SHARD_MAX_SECOND_CANDIDATES):
+            candidate = _shard_second_seam_candidate(
+                params, rng, seam1, attempt
+            )
+            if candidate is None:
+                continue
+            seam2 = candidate["path"]
+            seam1_list = [np.asarray(point).copy() for point in seam1]
+            _subdivide_path(
+                seam1_list,
+                int(candidate["seam_index"]),
+                candidate["local"],
+            )
+            trial_paths = [np.asarray(seam1_list), seam2]
+            record = {
+                "point": [
+                    float(candidate["hit"][0] % period),
+                    float(candidate["hit"][1]),
+                ],
+                "kind": "T",
+                "path": 1,
+                "angle": float(candidate["angle"]),
+            }
+            trial_params = dict(params)
+            trial_params["_growth_junctions"] = [record]
+            stats = analyze_growth_paths(trial_paths, trial_params)
+            clearance = stats.get("min_clearance")
+            if (
+                int(stats["crossings"]) == 0
+                and int(stats["clearance_violations"]) == 0
+                and clearance is not None
+                and float(clearance) >= r_clear - 1e-6
+            ):
+                accepted = (trial_paths, record)
+                break
+        if accepted is not None:
+            paths, record = accepted
+            params["_growth_junctions"] = [record]
+
+    if subdivide_step is not None:
+        step = max(float(subdivide_step), 1e-6)
+        paths = [
+            _densify_growth_polyline(np.asarray(path), step)
+            for path in paths
+        ]
+    return paths
+
+
 def generate_crack_paths(
     params: dict,
     rng: np.random.Generator,
@@ -2093,16 +2666,22 @@ def generate_crack_paths(
     subdivide_step: float | None = None,
     generator: str = "growth",
 ) -> list[np.ndarray]:
-    """Drop-in generator seam: growth (default) or legacy Voronoi."""
+    """Drop-in generator seam: growth (default), shard, or legacy Voronoi."""
     if generator == "growth":
         return generate_crack_growth_paths(
+            params, rng, subdivide_step=subdivide_step
+        )
+    if generator == "shard":
+        return generate_shard_crack_paths(
             params, rng, subdivide_step=subdivide_step
         )
     if generator == "voronoi":
         return generate_crack_voronoi_paths(
             params, rng, subdivide_step=subdivide_step
         )
-    raise ValueError("generator must be either 'growth' or 'voronoi'")
+    raise ValueError(
+        "generator must be 'growth', 'shard', or 'voronoi'"
+    )
 
 
 def generate_crack_voronoi_paths(
@@ -3017,8 +3596,14 @@ def generate_kintsugi_mesh(
     severity = compute_severity(R)
     if mode not in ("vein", "ribbon"):
         raise ValueError("mode must be either 'vein' or 'ribbon'")
-    if generator not in ("growth", "voronoi"):
-        raise ValueError("generator must be either 'growth' or 'voronoi'")
+    if generator not in ("growth", "shard", "voronoi"):
+        raise ValueError(
+            "generator must be 'growth', 'shard', or 'voronoi'"
+        )
+    if generator == "shard" and mode != "vein":
+        raise ValueError(
+            "generator='shard' is only supported in 'vein' mode in Stage 1"
+        )
     if seam_width is not None and float(seam_width) < MIN_SEAM_WIDTH_MM:
         raise ValueError(
             f"seam_width must be at least {MIN_SEAM_WIDTH_MM} mm, "
@@ -3269,9 +3854,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mode", choices=("vein", "ribbon"), default="ribbon")
     parser.add_argument(
         "--generator",
-        choices=("growth", "voronoi"),
+        choices=("growth", "shard", "voronoi"),
         default="growth",
-        help="Crack generator (growth is the default; voronoi is legacy)",
+        help=(
+            "Crack generator (growth is the default; shard is the tilted "
+            "shard-plane spike; voronoi is legacy)"
+        ),
     )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--seam-width", type=float, default=None)

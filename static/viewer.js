@@ -24,6 +24,8 @@ const ui = {
   ratio: $("ratio-slider"),
   ratioValue: $("ratio-value"),
   ratioCaption: $("ratio-caption"),
+  generator: $("generator-select"),
+  generatorNote: $("generator-note"),
   mode: $("mode-select"),
   seed: $("seed-input"),
   seamWidth: $("seam-width-input"),
@@ -35,6 +37,27 @@ const ui = {
   downloadCeramic: $("download-ceramic"),
   downloadGold: $("download-gold"),
   download3mf: $("download-3mf"),
+  menuEntries: document.querySelectorAll(".menu-entry"),
+  menuTriggers: document.querySelectorAll(".menu-item[data-menu]"),
+  menuFile: $("menu-file"),
+  menuPresets: $("menu-presets"),
+  menuHelp: $("menu-help"),
+  menuMode: $("menu-mode"),
+  menuUpload: $("menu-upload"),
+  menuFracture: $("menu-fracture"),
+  menuDownloadCeramic: $("menu-download-ceramic"),
+  menuDownloadGold: $("menu-download-gold"),
+  menuDownload3mf: $("menu-download-3mf"),
+  menuResetCamera: $("menu-reset-camera"),
+  menuAbout: $("menu-about"),
+  mobileTabs: $("mobile-tabs"),
+  mobileTabButtons: document.querySelectorAll(".mobile-tab"),
+  tabPanels: document.querySelectorAll("[data-tab-panel]"),
+  exportBadge: $("export-badge"),
+  helpDialog: $("help-dialog"),
+  helpDialogClose: $("help-dialog-close"),
+  helpDialogOk: $("help-dialog-ok"),
+  viewportHint: document.querySelector(".viewport-hint"),
   viewport: $("viewport"),
   studioWindow: $("studio-window"),
 };
@@ -117,6 +140,12 @@ function initViewer() {
   scene.add(state.modelGroup);
 
   window.addEventListener("resize", onResize);
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => onResize()).observe(ui.viewport);
+  }
+  if (ui.viewportHint && window.matchMedia?.("(pointer: coarse)").matches) {
+    ui.viewportHint.textContent = "Drag to orbit · Pinch to zoom · Two-finger pan";
+  }
   renderer.setAnimationLoop(() => {
     controls.update();
     renderer.render(scene, camera);
@@ -130,6 +159,123 @@ function onResize() {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   renderer.setSize(width, height);
+}
+
+const MOBILE_TABS = ["model", "fracture", "export"];
+
+function openMenu(name) {
+  syncMenuChecks();
+  for (const entry of ui.menuEntries) {
+    const trigger = entry.querySelector(".menu-item");
+    const dropdown = entry.querySelector(".menu-dropdown");
+    const shouldOpen = Boolean(
+      trigger && trigger.dataset.menu === name && dropdown
+    );
+    trigger?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    if (dropdown) dropdown.hidden = !shouldOpen;
+  }
+}
+
+function closeMenus() {
+  for (const entry of ui.menuEntries) {
+    entry.querySelector(".menu-item")?.setAttribute("aria-expanded", "false");
+    const dropdown = entry.querySelector(".menu-dropdown");
+    if (dropdown) dropdown.hidden = true;
+  }
+}
+
+function anyMenuOpen() {
+  return Boolean(document.querySelector(".menu-dropdown:not([hidden])"));
+}
+
+function switchMobileTab(tabName) {
+  const target = MOBILE_TABS.includes(tabName) ? tabName : "fracture";
+  for (const button of ui.mobileTabButtons) {
+    const active = button.dataset.tab === target;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  for (const panel of ui.tabPanels) {
+    panel.classList.toggle(
+      "mobile-panel-active",
+      panel.dataset.tabPanel === target
+    );
+  }
+  if (target === "export" && ui.exportBadge) {
+    ui.exportBadge.hidden = true;
+  }
+  requestAnimationFrame(onResize);
+}
+
+function syncMenuChecks() {
+  const presetId = ui.preset.value;
+  for (const option of ui.menuPresets.querySelectorAll("[data-preset]")) {
+    option.setAttribute(
+      "aria-checked",
+      option.dataset.preset === presetId ? "true" : "false"
+    );
+  }
+
+  const generator = ui.generator ? ui.generator.value : "growth";
+  for (const option of ui.menuMode.querySelectorAll("[data-generator]")) {
+    option.setAttribute(
+      "aria-checked",
+      option.dataset.generator === generator ? "true" : "false"
+    );
+  }
+
+  const modeInput = document.querySelector('input[name="mode"]:checked');
+  const mode = modeInput ? modeInput.value : "vein";
+  const ribbonOption = ui.menuMode.querySelector('[data-mode="ribbon"]');
+  if (ribbonOption) {
+    const ribbonDisabled = generator === "shard";
+    ribbonOption.classList.toggle("disabled", ribbonDisabled);
+    ribbonOption.setAttribute(
+      "aria-disabled",
+      ribbonDisabled ? "true" : "false"
+    );
+    ribbonOption.tabIndex = ribbonDisabled ? -1 : 0;
+  }
+  for (const option of ui.menuMode.querySelectorAll("[data-mode]")) {
+    option.setAttribute(
+      "aria-checked",
+      option.dataset.mode === mode ? "true" : "false"
+    );
+  }
+}
+
+function populatePresetMenu() {
+  if (!ui.menuPresets) return;
+  ui.menuPresets.innerHTML = '<div class="menu-section-label">Bundled Presets</div>';
+  for (const preset of state.presets) {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "menu-option";
+    option.dataset.preset = preset.id;
+    option.setAttribute("role", "menuitemradio");
+    option.setAttribute("aria-checked", "false");
+
+    const check = document.createElement("span");
+    check.className = "menu-check";
+    check.setAttribute("aria-hidden", "true");
+
+    const label = document.createElement("span");
+    label.textContent = preset.name;
+
+    option.append(check, label);
+    ui.menuPresets.appendChild(option);
+  }
+}
+
+function openHelpDialog() {
+  closeMenus();
+  if (!ui.helpDialog) return;
+  ui.helpDialog.hidden = false;
+  ui.helpDialogClose?.focus();
+}
+
+function closeHelpDialog() {
+  if (ui.helpDialog) ui.helpDialog.hidden = true;
 }
 
 function clearModel() {
@@ -235,17 +381,48 @@ function updateRatio() {
   }
 }
 
+function syncGeneratorMode() {
+  if (!ui.generator) return;
+  const gen = ui.generator.value;
+  const veinInput = document.querySelector('input[name="mode"][value="vein"]');
+  const ribbonInput = document.querySelector('input[name="mode"][value="ribbon"]');
+  if (gen === "shard") {
+    if (veinInput) veinInput.checked = true;
+    if (ribbonInput) ribbonInput.disabled = true;
+    if (ui.generatorNote) {
+      ui.generatorNote.textContent = "Tilted shard seams (Vein Inlay only).";
+    }
+  } else {
+    if (ribbonInput) ribbonInput.disabled = false;
+    if (ui.generatorNote) {
+      ui.generatorNote.textContent =
+        gen === "voronoi"
+          ? "Periodic cellular Voronoi seams."
+          : "Rim-seeded branching cracks.";
+    }
+  }
+  syncMenuChecks();
+}
+
 function setDownload(element, url, fallbackName) {
+  if (!element) return;
   if (!url) {
     element.classList.add("disabled");
     element.setAttribute("href", "#");
+    element.setAttribute("aria-disabled", "true");
     element.removeAttribute("download");
     return;
   }
   element.classList.remove("disabled");
   element.setAttribute("href", url);
+  element.setAttribute("aria-disabled", "false");
   const name = url.split("/").pop() || fallbackName;
   element.setAttribute("download", name);
+
+  const activeTab = document.querySelector(".mobile-tab.active")?.dataset.tab;
+  if (ui.exportBadge && activeTab !== "export") {
+    ui.exportBadge.hidden = false;
+  }
 }
 
 async function loadPreset(presetId) {
@@ -278,10 +455,16 @@ async function loadPresets() {
       option.textContent = preset.name;
       ui.preset.appendChild(option);
     }
+    populatePresetMenu();
     ui.preset.value = "tea_bowl";
+    syncMenuChecks();
     await loadPreset("tea_bowl");
   } catch (error) {
     ui.preset.innerHTML = '<option value="">Presets unavailable</option>';
+    if (ui.menuPresets) {
+      ui.menuPresets.innerHTML =
+        '<div class="menu-section-label">Presets Unavailable</div>';
+    }
     setStatus(`Preset API error: ${error.message}`);
   }
 }
@@ -298,6 +481,7 @@ async function handleCustomFile(file) {
   state.uploadValid = false;
   ui.fracture.disabled = true;
   ui.preset.value = "";
+  syncMenuChecks();
   ui.modelNote.textContent = `Custom: ${file.name}`;
   setStatus(`Loading ${file.name}…`);
 
@@ -387,6 +571,7 @@ async function fracture() {
   const modeInput = document.querySelector('input[name="mode"]:checked');
   form.append("R", ui.ratio.value);
   form.append("mode", modeInput ? modeInput.value : "vein");
+  form.append("generator", ui.generator ? ui.generator.value : "growth");
   form.append("seed", ui.seed.value || "7");
   if (ui.seamWidth.value !== "") {
     form.append("seam_width", ui.seamWidth.value);
@@ -404,6 +589,9 @@ async function fracture() {
     setDownload(ui.downloadCeramic, body.downloads.ceramic_stl, "ceramic_body.stl");
     setDownload(ui.downloadGold, body.downloads.gold_stl, "gold_seams.stl");
     setDownload(ui.download3mf, body.downloads.three_mf, "kintsugi_assembly.3mf");
+    setDownload(ui.menuDownloadCeramic, body.downloads.ceramic_stl, "ceramic_body.stl");
+    setDownload(ui.menuDownloadGold, body.downloads.gold_stl, "gold_seams.stl");
+    setDownload(ui.menuDownload3mf, body.downloads.three_mf, "kintsugi_assembly.3mf");
 
     await loadParts([
       { url: body.downloads.ceramic_stl, material: ceramicMaterial, name: "CeramicBody" },
@@ -435,6 +623,7 @@ async function fracture() {
 function wireEvents() {
   ui.preset.addEventListener("change", () => {
     if (ui.preset.value) loadPreset(ui.preset.value);
+    syncMenuChecks();
   });
 
   ui.uploadZone.addEventListener("click", () => ui.fileInput.click());
@@ -464,12 +653,117 @@ function wireEvents() {
   });
 
   ui.ratio.addEventListener("input", updateRatio);
+  if (ui.generator) {
+    ui.generator.addEventListener("change", syncGeneratorMode);
+  }
   ui.fracture.addEventListener("click", fracture);
 
-  document.querySelectorAll("[data-focus]").forEach((item) => {
-    item.addEventListener("click", () => {
-      const target = $(item.dataset.focus);
-      target?.focus();
+  for (const trigger of ui.menuTriggers) {
+    trigger.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const name = trigger.dataset.menu;
+      const dropdown = $(`menu-${name}`);
+      const wasOpen = dropdown ? !dropdown.hidden : false;
+      closeMenus();
+      if (!wasOpen) openMenu(name);
+    });
+    trigger.addEventListener("pointerenter", () => {
+      if (window.matchMedia?.("(hover: hover)").matches && anyMenuOpen()) {
+        openMenu(trigger.dataset.menu);
+      }
+    });
+  }
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".menu-entry")) closeMenus();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeMenus();
+      closeHelpDialog();
+    }
+  });
+
+  ui.menuUpload?.addEventListener("click", () => {
+    closeMenus();
+    ui.fileInput.click();
+  });
+
+  ui.menuFracture?.addEventListener("click", () => {
+    closeMenus();
+    fracture();
+  });
+
+  for (const link of [
+    ui.menuDownloadCeramic,
+    ui.menuDownloadGold,
+    ui.menuDownload3mf,
+  ]) {
+    link?.addEventListener("click", (event) => {
+      if (
+        link.classList.contains("disabled") ||
+        link.getAttribute("aria-disabled") === "true"
+      ) {
+        event.preventDefault();
+        return;
+      }
+      closeMenus();
+    });
+  }
+
+  ui.menuPresets?.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-preset]");
+    if (!option) return;
+    ui.preset.value = option.dataset.preset;
+    loadPreset(option.dataset.preset);
+    syncMenuChecks();
+    closeMenus();
+  });
+
+  ui.menuMode?.addEventListener("click", (event) => {
+    const generatorOption = event.target.closest("[data-generator]");
+    if (generatorOption) {
+      if (ui.generator) ui.generator.value = generatorOption.dataset.generator;
+      syncGeneratorMode();
+      syncMenuChecks();
+      closeMenus();
+      return;
+    }
+    const modeOption = event.target.closest("[data-mode]");
+    if (!modeOption || modeOption.classList.contains("disabled")) return;
+    const input = document.querySelector(
+      `input[name="mode"][value="${modeOption.dataset.mode}"]`
+    );
+    if (input && !input.disabled) {
+      input.checked = true;
+      syncGeneratorMode();
+      syncMenuChecks();
+      closeMenus();
+    }
+  });
+
+  ui.menuResetCamera?.addEventListener("click", () => {
+    frameObject();
+    closeMenus();
+  });
+
+  ui.menuAbout?.addEventListener("click", openHelpDialog);
+
+  for (const button of ui.mobileTabButtons) {
+    button.addEventListener("click", () => switchMobileTab(button.dataset.tab));
+  }
+
+  ui.helpDialog?.addEventListener("click", (event) => {
+    if (event.target === ui.helpDialog) closeHelpDialog();
+  });
+  ui.helpDialogClose?.addEventListener("click", closeHelpDialog);
+  ui.helpDialogOk?.addEventListener("click", closeHelpDialog);
+
+  document.querySelectorAll('input[name="mode"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      syncGeneratorMode();
+      syncMenuChecks();
     });
   });
 
@@ -491,9 +785,14 @@ async function start() {
   initViewer();
   wireEvents();
   updateRatio();
+  syncGeneratorMode();
   setDownload(ui.downloadCeramic, null);
   setDownload(ui.downloadGold, null);
   setDownload(ui.download3mf, null);
+  setDownload(ui.menuDownloadCeramic, null);
+  setDownload(ui.menuDownloadGold, null);
+  setDownload(ui.menuDownload3mf, null);
+  switchMobileTab("fracture");
   await loadPresets();
 }
 
