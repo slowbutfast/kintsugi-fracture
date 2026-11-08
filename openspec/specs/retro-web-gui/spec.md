@@ -18,15 +18,15 @@ The web GUI SHALL provide an interactive WebGL 3D canvas with orbit controls and
 - **THEN** system renders the ceramic body with matte off-white diffuse roughness (`#f8f6f0`) and the gold seams with metallic specular reflection (`#ffd700`), allowing mouse orbit, pan, and zoom without clipping outside the inset frame
 
 ### Requirement: Model preset selection and custom upload
-The web GUI SHALL allow selecting bundled preset 3D models or uploading a custom watertight `.stl` or `.obj` file.
+The web GUI SHALL allow selecting bundled preset 3D models or uploading a custom watertight `.stl` or `.obj` file. Input models must conform to the ceramic vessel envelope ($p_5 \ge 1.6\text{ mm}$ along inward surface normals across the wall range). The `thin_cylinder` model SHALL NOT be offered in user presets.
 
 #### Scenario: Preset model selection
-- **WHEN** user chooses a preset model (e.g. `Japanese Tea Bowl` or `3D Benchy`) from the dropdown
+- **WHEN** user chooses a preset model (e.g. `Japanese Tea Bowl` or `Tall Vase`) from the dropdown
 - **THEN** system immediately loads and renders the model in the 3D viewport and updates the status bar with mesh metadata
 
 #### Scenario: Custom file upload
 - **WHEN** user drags and drops a custom `.stl` file onto the upload zone
-- **THEN** the viewer parses it for preview and calls `POST /api/validate`, which runs `validate_and_load_mesh` in a temporary directory; the status bar reports `Watertight ✓` or `Not a valid closed solid: <detail>`, and the fracture button stays disabled while the upload is invalid
+- **THEN** the viewer parses it for preview and calls `POST /api/validate`, which runs `validate_and_load_mesh` in a temporary directory; the status bar reports `Watertight ✓` or `Not a valid closed solid: <detail>` (including wall thickness rejection if $p_5 < 1.6\text{ mm}$), and the fracture button stays disabled while the upload is invalid
 
 #### Scenario: Upload size cap
 - **WHEN** an upload exceeds 50 MB
@@ -47,10 +47,13 @@ The web GUI SHALL provide interactive controls for income ratio $R$, fracture mo
 - **WHEN** user sets $R \ge 1.0$
 - **THEN** system immediately updates the status label to `Pristine / Wealthy (0 cracks)` and renders the intact ceramic body without gold veins
 
+#### Scenario: Seams omitted feedback
+- **WHEN** fracture response returns `seams_omitted: true` with $R < 1.0$
+- **THEN** system displays `Seams Omitted` in the status indicator without claiming pristine wealth or displaying stale sub-millimeter thickness thresholds
+
 ### Requirement: One-click slicer asset download
 The web GUI SHALL provide download buttons for exporting individual binary STL files and the unified multi-material `.3mf` container.
 
 #### Scenario: Multi-material 3MF download
 - **WHEN** user clicks `Download kintsugi_assembly.3mf`
 - **THEN** system downloads the single-object, two-component 3MF archive ready for dual-extrusion slicing in Bambu Studio or PrusaSlicer
-
