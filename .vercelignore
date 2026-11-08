@@ -1,0 +1,15 @@
+.venv
+__pycache__
+*.pyc
+tests
+tools
+openspec
+output
+reports
+logs
+.agent
+.claude
+.codex
+.opencode
+.env
+.env.*
