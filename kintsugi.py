@@ -2323,24 +2323,40 @@ def project_crack_paths(
             inner_hits = manifold.ray_cast(
                 tuple(probe_start.tolist()), tuple(probe_end.tolist())
             )
+            radial_thickness = None
+            if len(hits) >= 2:
+                radial_thickness = (
+                    float(farthest.distance) - float(hits[-2].distance)
+                ) * ray_length
+            normal_thickness = None
             if inner_hits:
-                # Record t_i as the orthogonal distance along the inward
-                # surface normal -n_i, not the horizontal radial gap.
-                wall = (
+                normal_thickness = (
                     min(float(hit.distance) for hit in inner_hits)
                     * ray_length
                     + ENVELOPE_NORMAL_EPSILON_MM
                 )
+
+            if normal_thickness is not None:
+                # Record t_i as the orthogonal distance along the inward
+                # surface normal -n_i, but never let it exceed the radial
+                # two-hit measurement.  Taking the minimum is conservative and
+                # prevents a flared-wall overestimate if the normal probe is
+                # unclosed and returns a farther interior hit.
+                wall = normal_thickness
+                if radial_thickness is not None:
+                    wall = min(normal_thickness, radial_thickness)
                 single_hit = False
-            elif len(hits) >= 2:
-                wall = (
-                    float(farthest.distance) - float(hits[-2].distance)
-                ) * ray_length
-                single_hit = False
+            elif radial_thickness is not None:
+                # No inward-normal sample.  Keep the radial value but mark it
+                # single-hit so the path's median normal thickness bounds it
+                # in the fill pass below.
+                wall = radial_thickness
+                single_hit = True
+                single_hits += 1
             else:
-                # F13: a one-hit ray has no inner-wall thickness.  Use the
-                # path's median two-hit thickness (filled in below), falling
-                # back to the global two-hit median.
+                # F13: no usable two-hit measurement.  Use the path's median
+                # two-hit thickness (filled in below), falling back to the
+                # global two-hit median.
                 wall = global_median_wall
                 single_hit = True
                 single_hits += 1
@@ -2359,8 +2375,10 @@ def project_crack_paths(
         if len(current) >= 1:
             projected_paths.append(current)
 
-    # Fill any residual single-hit points from their own path's median
-    # two-hit wall thickness, with the global median as a fallback.
+    # Fill residual single-hit points from their own path's median two-hit
+    # wall thickness, with the global median as a fallback.  The measured value
+    # is kept when it is smaller, so a radial-only fallback can never introduce
+    # a flared-wall overestimate.
     for path in projected_paths:
         two_hit_walls = [p["t"] for p in path if not p["single_hit"]]
         path_median = (
@@ -2370,7 +2388,9 @@ def project_crack_paths(
         )
         for point in path:
             if point["single_hit"]:
-                point["t"] = max(float(path_median), 0.2)
+                point["t"] = max(
+                    min(float(point["t"]), float(path_median)), 0.2
+                )
 
     in_band_miss_fraction = (
         band_misses / band_points if band_points else 0.0
@@ -2448,7 +2468,11 @@ def _densify_projected_paths(
 
 
 def _vein_depth(width: float, thickness: float) -> float:
-    """Classical continuous vein depth ``d_i = min(0.75 W, 0.5 t_i)``."""
+    """Classical continuous vein depth ``d_i = min(0.75 W, 0.5 t_i)``.
+
+    Nominal ceramic backing is ``t_i - d_i >= 0.5 * t_i`` everywhere, and
+    ``>= 0.8 mm`` wherever ``t_i >= 1.6 mm``.
+    """
     return min(0.75 * float(width), 0.5 * float(thickness))
 
 
@@ -2457,10 +2481,12 @@ def _vein_cutter_points(
 ) -> list[list[dict]]:
     """Return every densified cutter point with its inset sphere centre.
 
-    There is no point-omission or polyline-splitting logic: on a valid ceramic
-    envelope (``p5 >= 1.6 mm``) the depth ``d_i = min(0.75 W, 0.5 t_i)`` is at
-    least ``0.6 mm``, so cutter spheres always remain embedded and consecutive
-    points can be unioned continuously.
+    There is no point-omission or polyline-splitting logic.  With
+    ``d_i = min(0.75 W, 0.5 t_i)`` the nominal ceramic backing is
+    ``t_i - d_i >= 0.5 * t_i`` everywhere, and ``>= 0.8 mm`` wherever
+    ``t_i >= 1.6 mm``.  The 5th-percentile envelope bounds the wall
+    statistically; individual tapered-lip points may be thinner, but every
+    point is still retained so each crack path remains one continuous channel.
     """
     width = float(W)
     radius = 0.5 * width
@@ -2830,12 +2856,12 @@ def _gold_solid_omitted(
         return True
     if hasattr(gold, "num_tri") and gold.num_tri() == 0:
         return True
-    if float(gold.volume()) <= 0.0:
+    if float(gold.volume()) <= 1e-6:
         return True
     if gold_mesh is not None:
         if len(gold_mesh.faces) == 0:
             return True
-        if abs(float(gold_mesh.volume)) <= 0.0:
+        if abs(float(gold_mesh.volume)) <= 1e-6:
             return True
     return False
 

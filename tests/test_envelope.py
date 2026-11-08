@@ -5,6 +5,7 @@ Run with:  .venv/bin/python -m unittest tests.test_envelope -v
 
 from __future__ import annotations
 
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,10 +33,51 @@ def _annular_cylinder(wall_mm: float, *, outer_radius: float = 25.0,
     )
 
 
+def _flared_cone(
+    normal_thickness_mm: float,
+    *,
+    flare_deg: float = 45.0,
+    base_radius: float = 15.0,
+    height: float = 70.0,
+    base: float = 5.0,
+    circular_segments: int = 96,
+) -> mf.Manifold:
+    """Closed 45-degree flared vessel with the requested *normal* wall thickness.
+
+    The radial wall gap is ``t_normal * sqrt(1 + slope^2)``; at 45 degrees a
+    1.2 mm normal wall reads as ~1.70 mm radially.
+    """
+    slope = math.tan(math.radians(flare_deg))
+    radial_gap = float(normal_thickness_mm) * math.sqrt(1.0 + slope * slope)
+    outer_top = base_radius + slope * height
+    outer_base = base_radius + slope * base
+    profile = [
+        (0.0, 0.0),
+        (base_radius, 0.0),
+        (outer_top, height),
+        (outer_top - radial_gap, height),
+        (outer_base - radial_gap, base),
+        (0.0, base),
+    ]
+    return mf.Manifold.revolve(
+        mf.CrossSection([profile]), circular_segments=circular_segments
+    )
+
+
 def _write_cylinder(directory: Path, wall_mm: float, name: str) -> Path:
     path = directory / f"{name}.stl"
     fixtures.write_stl(
         fixtures.manifold_to_trimesh(_annular_cylinder(wall_mm)), path
+    )
+    return path
+
+
+def _write_flared_cone(
+    directory: Path, normal_thickness_mm: float, name: str
+) -> Path:
+    path = directory / f"{name}.stl"
+    fixtures.write_stl(
+        fixtures.manifold_to_trimesh(_flared_cone(normal_thickness_mm)), path
     )
     return path
 
@@ -101,6 +143,45 @@ class CeramicEnvelopeTestCase(unittest.TestCase):
             self.assertFalse(result["seams_omitted"])
             self.assertIsNotNone(result["gold_path"])
             self.assertGreater(result["triangle_counts"]["gold"], 0)
+
+    def test_envelope_flared_cone_normal_thickness_rejection(self) -> None:
+        import kintsugi
+
+        thin = _write_flared_cone(self.root, 1.2, "flared_1p2")
+        thick = _write_flared_cone(self.root, 2.0, "flared_2p0")
+
+        # Radial probing overstates the 45-degree wall to ~1.70 mm, so a
+        # regression back to radial measurement would falsely accept it.
+        thin_mesh = fixtures.manifold_to_trimesh(_flared_cone(1.2))
+        thin_manifold = kintsugi.trimesh_to_manifold(thin_mesh)
+        radial = kintsugi._probe_wall_range(thin_manifold, thin_mesh)
+        self.assertGreater(radial["median_two_hit_wall"], 1.6)
+        self.assertLess(radial["median_two_hit_wall"], 1.8)
+
+        with self.assertRaises(ValueError) as ctx:
+            kintsugi.validate_and_load_mesh(thin, S=0.0)
+        message = str(ctx.exception).lower()
+        self.assertIn("wall thickness", message)
+        self.assertIn("1.60", message)
+
+        validation = kintsugi.validate_and_load_mesh(thick, S=0.0)
+        self.assertGreaterEqual(
+            validation.probe["wall_thickness_p5"], 1.6 - 1e-6
+        )
+        self.assertAlmostEqual(
+            validation.probe["wall_thickness_p5"], 2.0, delta=0.1
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            result = kintsugi.generate_kintsugi_mesh(
+                thick,
+                tmp,
+                R=0.6,
+                mode="vein",
+                seed=7,
+                generator="growth",
+            )
+            self.assertFalse(result["seams_omitted"])
+            self.assertIsNotNone(result["gold_path"])
 
     def test_wall_envelope_boundary_comparison(self) -> None:
         import kintsugi

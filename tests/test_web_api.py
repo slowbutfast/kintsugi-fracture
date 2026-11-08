@@ -13,6 +13,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+import manifold3d as mf
+
 import web_app
 import sample_models
 from tests import fixtures
@@ -87,6 +89,30 @@ class WebApiTestCase(unittest.TestCase):
             asset = self.client.get(downloads[key])
             self.assertEqual(asset.status_code, 200, key)
             self.assertGreater(len(asset.content), 0, key)
+
+    def test_api_fracture_empty_gold_pipeline(self) -> None:
+        with unittest.mock.patch.object(
+            web_app.kintsugi,
+            "_build_vein_cutter",
+            return_value=mf.Manifold(),
+        ):
+            response = self.client.post(
+                "/api/fracture",
+                data={
+                    "preset": "tea_bowl",
+                    "R": "0.6",
+                    "mode": "vein",
+                    "seed": "7",
+                },
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertTrue(body["seams_omitted"])
+        self.assertIsNone(body["downloads"]["gold_stl"])
+        self.assertEqual(body["num_cracks"], 0)
+        self.assertEqual(body["triangle_counts"]["gold"], 0)
+        self.assertAlmostEqual(body["volumes"]["gold"], 0.0)
+        self.assertIsNotNone(body["downloads"]["ceramic_stl"])
 
     def test_api_fracture_defaults_to_vein_growth(self) -> None:
         response = self.client.post(

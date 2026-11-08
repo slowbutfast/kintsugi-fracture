@@ -33,9 +33,9 @@
 
 ## Patch 01: Flared-Wall Normal Tests, Tapered-Lip Audit & Defensive Pipeline Verification
 
-- [ ] P01.1 Scaffold flared-cone fixture pair in `tests/test_envelope.py`: 1.2 mm normal wall (45° flare) rejected, 2.0 mm accepted
-- [ ] P01.2 Apply conservative normal-ray miss fallback $\min(t_{\text{normal}}, t_{\text{radial}})$ in `kintsugi.py`
-- [ ] P01.3 Add tapered-lip test fixture and verify continuous gold carving, reporting minimum carved depth and ceramic backing
-- [ ] P01.4 In `kintsugi.py`, replace exact float compare in `_gold_solid_omitted` with `1e-6` volume tolerance
-- [ ] P01.5 Add end-to-end empty-gold pipeline test in `tests/test_web_api.py` with patched empty cutter
-- [ ] P01.6 Update docstrings, `patch.md`, and `verification.md` with exact backing/depth wording and test results
+- [x] P01.1 Scaffold flared-cone fixture pair in `tests/test_envelope.py`: 1.2 mm normal wall (45° flare) rejected, 2.0 mm accepted
+- [x] P01.2 Apply conservative normal-ray miss fallback $\min(t_{\text{normal}}, t_{\text{radial}})$ in `kintsugi.py`
+- [x] P01.3 Add tapered-lip test fixture and verify continuous gold carving, reporting minimum carved depth and ceramic backing
+- [x] P01.4 In `kintsugi.py`, replace exact float compare in `_gold_solid_omitted` with `1e-6` volume tolerance
+- [x] P01.5 Add end-to-end empty-gold pipeline test in `tests/test_web_api.py` with patched empty cutter
+- [x] P01.6 Update docstrings, `patch.md`, and `verification.md` with exact backing/depth wording and test results

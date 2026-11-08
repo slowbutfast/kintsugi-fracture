@@ -61,6 +61,33 @@ def _components(mesh: trimesh.Trimesh) -> list[trimesh.Trimesh]:
     return [part for part in parts if part.volume > 1e-9]
 
 
+def _tapered_lip_manifold(
+    *,
+    height: float = 100.0,
+    body: float = 2.4,
+    lip: float = 1.0,
+    taper: float = 3.0,
+    outer: float = 25.0,
+    base: float = 5.0,
+    circular_segments: int = 96,
+) -> mf.Manifold:
+    """Cylinder with a 2.4 mm body tapering to a 1.0 mm lip over the top 3 mm."""
+    inner_body = outer - float(body)
+    inner_lip = outer - float(lip)
+    profile = [
+        (0.0, 0.0),
+        (outer, 0.0),
+        (outer, height),
+        (inner_lip, height),
+        (inner_body, height - taper),
+        (inner_body, base),
+        (0.0, base),
+    ]
+    return mf.Manifold.revolve(
+        mf.CrossSection([profile]), circular_segments=circular_segments
+    )
+
+
 # ---------------------------------------------------------------------------
 # Remediation helpers (tasks 7.1+)
 # ---------------------------------------------------------------------------
@@ -1043,6 +1070,67 @@ class KintsugiTestCase(unittest.TestCase):
         )
         self.assertAlmostEqual(float(projected[0][0]["t"]), expected_thickness)
 
+    def test_projection_takes_min_and_bounds_normal_miss(self) -> None:
+        import kintsugi
+
+        class _Hit:
+            def __init__(self, distance: float, normal):
+                self.distance = distance
+                self.normal = normal
+
+        class _ScriptedManifold:
+            def __init__(self, responses) -> None:
+                self.responses = list(responses)
+                self.calls = 0
+
+            def ray_cast(self, start, end):
+                response = self.responses[self.calls]
+                self.calls += 1
+                return response
+
+        def _normal_hit(distance: float):
+            return [_Hit(distance, (1.0, 0.0, 0.0))]
+
+        radial = [_Hit(0.1, (1.0, 0.0, 0.0)), _Hit(0.5, (1.0, 0.0, 0.0))]
+        fake = _ScriptedManifold(
+            [
+                radial,
+                [],  # point 1: normal ray misses
+                radial,
+                _normal_hit(0.2),  # point 2: normal smaller than radial
+                radial,
+                _normal_hit(0.45),  # point 3: normal larger than radial
+            ]
+        )
+        mesh = trimesh.load(self.bowl, process=False)
+        params = {
+            "rbar": 30.0,
+            "z_min": 0.0,
+            "z_max": 100.0,
+            "wall_z_max": 50.0,
+            "W": 1.4,
+            "median_two_hit_wall": 3.0,
+        }
+        projected, _, _ = kintsugi.project_crack_paths(
+            [[
+                np.array([0.0, 5.0]),
+                np.array([0.0, 6.0]),
+                np.array([0.0, 7.0]),
+            ]],
+            fake,
+            params,
+            mesh,
+        )
+        ray_length = 2.0 * float(np.max(mesh.extents)) + 10.0
+        thicknesses = [float(point["t"]) / ray_length for point in projected[0]]
+
+        # Point 2 uses min(normal, radial) = 0.2; point 3 keeps radial 0.4
+        # because it is smaller than normal 0.45.  The radial-only point 1 is
+        # bounded by the path median (0.3), never left at 0.4.
+        self.assertAlmostEqual(thicknesses[0], 0.3, delta=1e-5)
+        self.assertAlmostEqual(thicknesses[1], 0.2, delta=1e-5)
+        self.assertAlmostEqual(thicknesses[2], 0.4, delta=1e-5)
+
     def test_ray_tiebreak_direction(self) -> None:
         import kintsugi
 
@@ -1236,6 +1324,83 @@ class KintsugiTestCase(unittest.TestCase):
             with self.assertRaises(ValueError) as ctx:
                 kintsugi.validate_and_load_mesh(input_path, S=0.0)
             self.assertIn("wall thickness", str(ctx.exception).lower())
+
+    def test_tapered_lip_continuous_vein_and_backing(self) -> None:
+        import kintsugi
+
+        tapered = _tapered_lip_manifold()
+        tapered_mesh = kintsugi.manifold_to_trimesh(tapered)
+        with tempfile.TemporaryDirectory() as tmp:
+            input_path = Path(tmp) / "tapered_lip.stl"
+            input_path.write_bytes(trimesh.exchange.stl.export_stl(tapered_mesh))
+            validation = kintsugi.validate_and_load_mesh(input_path, S=0.0)
+            p5 = float(validation.probe["wall_thickness_p5"])
+            self.assertGreaterEqual(p5, 1.6 - 1e-6)
+
+            params = kintsugi.compute_parameters(
+                0.6,
+                validation.mesh,
+                manifold=validation.manifold,
+                probe=validation.probe,
+            )
+            width = float(params["W"])
+            paths = kintsugi.generate_crack_paths(
+                params,
+                np.random.default_rng(7),
+                generator="growth",
+            )
+            projected, _, _ = kintsugi.project_crack_paths(
+                paths, validation.manifold, params, validation.mesh
+            )
+
+            thicknesses: list[float] = []
+            depths: list[float] = []
+            backings: list[float] = []
+            for path in projected:
+                for point in path:
+                    thickness = float(point["t"])
+                    depth = kintsugi._vein_depth(width, thickness)
+                    thicknesses.append(thickness)
+                    depths.append(depth)
+                    backings.append(thickness - depth)
+
+            self.assertTrue(thicknesses)
+            t_min = min(thicknesses)
+            d_min = min(depths)
+            backing_min = min(backings)
+            high_wall_backing = [
+                backing
+                for thickness, backing in zip(thicknesses, backings)
+                if thickness >= 1.6 - 1e-9
+            ]
+            self.assertLess(t_min, 1.6, "test must exercise the tapered lip")
+            self.assertGreaterEqual(d_min, 0.5 - 1e-6)
+            self.assertGreaterEqual(backing_min, 0.5 * t_min - 1e-6)
+            self.assertTrue(high_wall_backing)
+            self.assertGreaterEqual(min(high_wall_backing), 0.8 - 1e-6)
+            print(
+                "tapered lip: "
+                f"p5={p5:.3f} mm, t_min={t_min:.3f} mm, "
+                f"d_min={d_min:.3f} mm, backing_min={backing_min:.3f} mm, "
+                f"backing_min(t>=1.6)={min(high_wall_backing):.3f} mm"
+            )
+
+            result = kintsugi.generate_kintsugi_mesh(
+                input_path,
+                Path(tmp) / "out",
+                R=0.6,
+                mode="vein",
+                seed=7,
+                generator="growth",
+            )
+            self.assertFalse(result["seams_omitted"])
+            self.assertIsNotNone(result["gold_path"])
+            self.assertGreater(result["num_cracks"], 0)
+            gold = trimesh.load(result["gold_path"], process=True)
+            self.assertTrue(gold.is_watertight)
+            self.assertTrue(gold.is_volume)
+            self.assertGreater(float(gold.volume), 0.0)
+            self.assertEqual(_bad_edge_count(gold), 0)
 
     def test_empty_gold_solid_omits_file_and_warns(self) -> None:
         import kintsugi
