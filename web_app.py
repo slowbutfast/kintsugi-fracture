@@ -21,7 +21,15 @@ from sample_models import PRESETS, ensure_presets, preset_path
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 PRESET_DIR = BASE_DIR / "presets"
-OUTPUT_DIR = BASE_DIR / "output" / "web"
+# Vercel's filesystem is read-only outside /tmp, and /tmp is per-instance:
+# downloads are best effort there (a follow-up request can land on a cold
+# instance).  KINTSUGI_OUTPUT_DIR overrides the location everywhere.
+_DEFAULT_OUTPUT_DIR = (
+    Path(tempfile.gettempdir()) / "kintsugi-web"
+    if os.getenv("VERCEL")
+    else BASE_DIR / "output" / "web"
+)
+OUTPUT_DIR = Path(os.getenv("KINTSUGI_OUTPUT_DIR") or _DEFAULT_OUTPUT_DIR)
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
