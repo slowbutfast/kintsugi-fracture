@@ -14,7 +14,10 @@ The engine writes `ceramic_body.stl` and `gold_seams.stl`. Optionally it also wr
    - seed count `N = ⌊2 + 8S⌋`;
    - seam width `W = 0.8 + 1.4S` mm;
    - band height `H = H_mesh·(0.2 + 0.8S)`.
-3. **Crack graph:** a periodic Voronoi diagram in unrolled cylindrical space `(u = θ·r̄, z)`. Every point lies on the true periodic diagram before noise. A θ-periodic noise field then roughens the cracks. Paths are cut where they leave the vessel's wall range, so the solid floor is never touched.
+3. **Crack graph:** generated in unrolled cylindrical space `(u = θ·r̄, z)` and cut where paths leave the vessel's wall range so the solid floor is never touched. Three fracture generators are available:
+   - **`growth`** *(default)*: rim-seeded branching lightning cracks with correlated heading walk, sharp kinks, and verified T-junctions;
+   - **`shard`**: tilted macroscopic shard-plane seams (open rim-to-rim wedges and closed tilted loops with verified T-junctions, supported in `vein` mode);
+   - **`voronoi`**: legacy periodic Voronoi diagram roughened by a θ-periodic noise field.
 4. **Project** each crack point onto the exterior surface by radial ray casting, recording the local wall thickness.
 5. **Cutter:**
    - *vein* mode uses inset spheres, a partial-depth groove;
@@ -23,7 +26,7 @@ The engine writes `ceramic_body.stl` and `gold_seams.stl`. Optionally it also wr
 7. **Debris swap:** crumbs under 1 mm³ move into the other material. Nothing is deleted.
 8. **Round-trip guard:** both outputs must reload from binary STL with zero non-manifold edges. Sub-10 nm CSG slivers are repaired first. Otherwise the cutter is rebuilt on a new sub-seed, up to 3 times, before a `RuntimeError` with no files written.
 
-Output is deterministic: the same input, `R`, mode and seed give byte-identical files across processes.
+Output is deterministic: the same input, `R`, mode, generator, and seed give byte-identical files across processes.
 
 ## Setup
 
@@ -39,19 +42,21 @@ python3 -m venv .venv
 **CLI**
 
 ```bash
-.venv/bin/python kintsugi.py presets/tea_bowl.stl -o output/demo -R 0.2 --mode ribbon --seed 7 --3mf
+.venv/bin/python kintsugi.py presets/tea_bowl.stl -o output/demo -R 0.2 --mode vein --generator shard --seed 7 --3mf
 ```
 
-Options: `-R/--income-ratio` (default 0.5), `--mode vein|ribbon`, `--seed`, `--seam-width`, `--3mf`, `--json`.
+Options: `-R/--income-ratio` (default 0.5), `--mode vein|ribbon`, `--generator growth|shard|voronoi` (default `growth`; `shard` requires `--mode vein`), `--seed`, `--seam-width`, `--3mf`, `--json`.
 
 **Python**
 
 ```python
 import kintsugi
-result = kintsugi.generate_kintsugi_mesh("presets/vase.stl", "output/vase", R=0.3, mode="vein", seed=1)
+result = kintsugi.generate_kintsugi_mesh(
+    "presets/vase.stl", "output/vase", R=0.3, mode="vein", seed=1, generator="shard"
+)
 ```
 
-**Web GUI** (a Windows XP-styled viewer built on Three.js and FastAPI)
+**Web GUI** (a Windows XP-styled viewer built on Three.js and FastAPI, featuring a `Generator` dropdown in `Fracture Controls` to switch between `Rim Growth`, `Shard Planes`, and `Periodic Voronoi`)
 
 ```bash
 .venv/bin/python web_app.py --host 127.0.0.1 --port 8000

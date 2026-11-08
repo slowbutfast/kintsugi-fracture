@@ -298,6 +298,11 @@ select {
   accent-color: var(--action-end);
 }
 
+.radio-option input[type="radio"]:disabled + span {
+  color: var(--on-surface-disabled);
+  cursor: not-allowed;
+}
+
 .radio-group:focus-visible {
   outline: 1px dotted var(--border-dark);
   outline-offset: 2px;
@@ -305,6 +310,7 @@ select {
 
 .field-note {
   margin-top: var(--space-sm);
+  margin-bottom: var(--space-sm);
   color: var(--on-surface-muted);
   font-size: 10px;
   line-height: 1.25;

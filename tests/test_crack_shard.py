@@ -399,6 +399,33 @@ class CrackShardTestCase(unittest.TestCase):
                 finally:
                     client.close()
 
+    # -- Task P01.1 ---------------------------------------------------------
+    def test_web_ui_exposes_generator_select_and_shard_option(self) -> None:
+        from fastapi.testclient import TestClient
+
+        import web_app
+
+        client = TestClient(web_app.app)
+        try:
+            html_res = client.get("/")
+            self.assertEqual(html_res.status_code, 200)
+            html = html_res.text
+            self.assertIn('id="generator-select"', html)
+            self.assertIn('id="generator-note"', html)
+            self.assertIn('<option value="growth"', html)
+            self.assertIn('<option value="shard">', html)
+            self.assertIn('<option value="voronoi">', html)
+
+            js_res = client.get("/viewer.js")
+            self.assertEqual(js_res.status_code, 200)
+            js = js_res.text
+            self.assertIn("generator-select", js)
+            self.assertIn("generator-note", js)
+            self.assertIn("syncGeneratorMode", js)
+            self.assertIn('form.append("generator"', js)
+        finally:
+            client.close()
+
 
 if __name__ == "__main__":
     unittest.main()

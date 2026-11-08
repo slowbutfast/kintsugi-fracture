@@ -25,6 +25,10 @@ Rather than physically slicing the 3D mesh into separate solid shards and re-uni
   - Update `_tortuosity_values` so closed periodic loops are split into 4 equal quadrant sub-arcs ($\Delta u = P / 4$) in 2D $(u, z)$ before computing arc over chord, enforcing the engine tortuosity floor $\tau \ge 1.05$.
 - **Side-by-Side Contact Sheet Comparison**:
   - Extend `tools/spike_contact_sheet.py` with `--generator {growth,shard,both}` calling `generate_kintsugi_mesh` to render a 12-case contact sheet (`reports/contact_sheet_shard.png`) across Tea Bowl and Tall Vase at $R \in \{0.0, 0.2, 0.5\}$ and seeds 0 and 1.
+- **Web GUI Generator Selector & Documentation (`PATCH-01`)**:
+  - Add `<select class="xp-select" id="generator-select">` (`growth`, `shard`, `voronoi`) and `#generator-note` inside the `Fracture Controls` panel of `static/index.html`.
+  - Update `static/viewer.js` (`syncGeneratorMode()` and `fracture()`) so selecting `shard` automatically locks `mode="vein"`, disables the `ribbon` radio button, and passes `generator` to `POST /api/fracture`.
+  - Document the three generators (`growth`, `shard`, `voronoi`) across CLI, Python API, and Web GUI in `README.md`.
 
 ## Capabilities
 
@@ -33,6 +37,7 @@ Rather than physically slicing the 3D mesh into separate solid shards and re-uni
 
 ### Modified Capabilities
 - `mesh-fracture-engine`: Add `Requirement: Shard-plane crack generation` defining the opt-in `generator="shard"` seam primitives, exact wall-band truncation, height-capped drift bridge loop closure, verified Seam 2 T-junction with `params["_growth_junctions"]` metadata and deterministic fallback, closed-loop cyclic clearance and 2D quadrant sub-arc tortuosity ($\tau \ge 1.05$), and Stage 1 `mode="vein"` scope.
+- `retro-web-gui`: Modify `Requirement: Real-time parameter controls and fracture execution` to expose the `Generator` dropdown (`growth`, `shard`, `voronoi`) in `Fracture Controls`, automatically enforce `mode="vein"` when `shard` is selected, and submit `generator` in `POST /api/fracture`.
 
 ## Impact
 
@@ -41,9 +46,11 @@ Rather than physically slicing the 3D mesh into separate solid shards and re-uni
   - `generate_shard_crack_paths` (inserted before `generate_crack_paths` around `L2080`): Implement Stage 1 shard-plane seam synthesis, exact truncation, and verified T-junction insertion with `params["_growth_junctions"]`.
   - `generate_crack_paths` (`L2089-L2106`): Dispatch `generator == "shard"` to `generate_shard_crack_paths(params, rng, subdivide_step=subdivide_step)`. Retain `"growth"` and `"voronoi"`.
   - `generate_kintsugi_mesh` and CLI parser (`L3018-L3022`, `L3270-L3276`): Accept `"shard"` in `generator`, raise `ValueError` for `generator="shard"` and `mode="ribbon"`.
-- **`web_app.py`**:
+- **`web_app.py` / `static/index.html` / `static/viewer.js` / `static/xp.css` / `README.md`**:
   - `api_fracture` handles `generator="shard"`, converting `ValueError` for `mode="ribbon"` into HTTP 400.
+  - `static/index.html`, `static/viewer.js`, and `static/xp.css` expose `#generator-select` (`growth`, `shard`, `voronoi`), lock `mode="vein"` when `shard` is active, and submit `generator` to `/api/fracture`.
+  - `README.md` documents `--generator growth|shard|voronoi` and Web GUI generator selection.
 - **`tools/spike_contact_sheet.py`**:
   - Add `--generator {growth,shard,both}` CLI flag calling `generate_kintsugi_mesh`.
 - **`tests/test_crack_shard.py`**:
-  - New TDD unit and integration suite verifying open wedge truncation, closed loop drift bridge periodic continuity and cyclic clearance, verified two-seam T-junction vs. deterministic fallback, 2D quadrant sub-arc tortuosity ($\tau \ge 1.05$), and watertight `Manifold3D` boolean output on Tea Bowl and Tall Vase.
+  - New TDD unit and integration suite verifying open wedge truncation, closed loop drift bridge periodic continuity and cyclic clearance, verified two-seam T-junction vs. deterministic fallback, 2D quadrant sub-arc tortuosity ($\tau \ge 1.05$), watertight `Manifold3D` boolean output on Tea Bowl and Tall Vase, and Web GUI `#generator-select` wiring.

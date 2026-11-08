@@ -29,3 +29,10 @@
 - [x] 5.2 Populate `verification.md` with Requirement Adherence Matrix, resolved assumptions, contact sheet comparison summary, and verbatim execution logs.
 - [ ] 5.3 Perform visual inspection of `reports/contact_sheet_shard.png` side-by-side with `reports/contact_sheet.png` across all 12 cells.
 - [ ] 5.4 Human review and decision on future default generator (`growth` vs `shard`).
+
+## Patch 01: Expose Fracture Generator Selector in Web GUI & Docs
+
+- [x] P01.1 Scaffold failing test `test_web_ui_exposes_generator_select_and_shard_option` in `tests/test_crack_shard.py` verifying `GET /` serves `#generator-select` with `growth`, `shard`, and `voronoi` options and `GET /viewer.js` wires `generator-select`, enforces `mode="vein"` when `shard` is selected, and appends `generator` to the `/api/fracture` form payload
+- [x] P01.2 Apply minimal targeted fix in `static/index.html`, `static/viewer.js`, `static/xp.css`, and update documentation in `README.md`, `openspec/changes/kintsugi-shard-seams/proposal.md`, `openspec/changes/kintsugi-shard-seams/design.md`, `openspec/changes/kintsugi-shard-seams/specs/retro-web-gui/spec.md`, and `openspec/specs/retro-web-gui/spec.md`
+- [x] P01.3 Verify reproduction test passes (`.venv/bin/python -m unittest tests.test_crack_shard.CrackShardTestCase.test_web_ui_exposes_generator_select_and_shard_option -v`) and run full regression suite (`.venv/bin/python -m unittest discover -s tests -p "test_*.py" -v`)
+- [x] P01.4 Update `verification.md` and mark `PATCH-01` resolved in `patch.md`

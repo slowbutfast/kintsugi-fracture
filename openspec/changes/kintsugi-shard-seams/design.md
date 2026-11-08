@@ -11,7 +11,7 @@
   - $R = 0.2$ ($S = 0.8$): Pronounced fracture damage. 2 seams with larger harmonic swing and sharper step deflections ($\tau \in [1.12, 1.30]$).
   - $R = 0.0$ ($S = 1.0$): Maximum fracture damage. 2 rugged stoneware macroscopic shard seams ($\tau \in [1.15, 1.35]$).
   - *Note on Sparsity*: While growth mode generates 15–20 fine cracks at $S = 1.0$, Stage 1 of shard mode deliberately focuses on the macroscopic shard boundary silhouettes (2 primary seams). Stage 2 will introduce secondary hairline branches connecting to these primary seams.
-- **Stage 1 UI Scope**: No Web GUI (`static/index.html` / `static/app.js`) controls are modified in Stage 1. Visual validation is conducted via the 12-case rendered contact sheet (`reports/contact_sheet_shard.png`) compared side-by-side against `reports/contact_sheet.png` (`generator="growth"`), or via `--generator both`.
+- **Stage 1 UI Scope (`PATCH-01`)**: In addition to the 12-case rendered contact sheet (`reports/contact_sheet_shard.png`) compared side-by-side against `reports/contact_sheet.png` (`generator="growth"`), the Kintsugi Studio 2001 Web GUI (`static/index.html`, `static/viewer.js`, `static/xp.css`) exposes a `<select class="xp-select" id="generator-select">` dropdown inside the `Fracture Controls` panel with options `growth` (default), `shard`, and `voronoi`. Selecting `shard` automatically locks `Mode` to `Vein Inlay` and disables `Ribbon Cut`.
 
 ---
 
@@ -54,6 +54,14 @@ The contact sheet renderer (`tools/spike_contact_sheet.py`) reuses the establish
   - **$R = 0.5$ ($S = 0.5$, Moderate Damage)**: Moderate harmonic undulation with controlled kink steps ($\tau \in [1.08, 1.20]$).
   - **$R = 0.2$ ($S = 0.8$, High Damage)**: Broader plane tilt excursion and pronounced crystalline steps ($\tau \in [1.12, 1.30]$).
   - **$R = 0.0$ ($S = 1.0$, Rugged Stoneware Fracture)**: Maximum harmonic amplitude and sharpest angular step deflections ($\tau \in [1.15, 1.35]$) bounded strictly inside the wall envelope without flat-run ledges.
+
+### Component: `Web GUI Fracture Generator Selector (#generator-select)`
+
+- **Visual Hierarchy & Placement**: Placed at the top of the `Fracture Controls` panel (`static/index.html`) directly above the `Mode` radio group, using existing Windows XP Luna tokens (`class="xp-select"`, surface `var(--surface-light)` `#ffffff`, inset border `var(--border-shadow)` `#918e82` / `var(--border-highlight)` `#ffffff`, and caption `class="field-note"` in `var(--on-surface-muted)` `#555555`).
+- **Interactive States**:
+  - **`growth` (default)**: `"Rim Growth — branching lightning (default)"`; both `Vein Inlay` and `Ribbon Cut` radio options are enabled; `#generator-note` displays `"Rim-seeded branching cracks."`.
+  - **`shard`**: `"Shard Planes — tilted kintsugi seams"`; automatically selects `Vein Inlay` (`mode="vein"`), disables the `Ribbon Cut` radio input (`color: var(--on-surface-disabled)` `#888888`), and updates `#generator-note` to `"Tilted shard seams (Vein Inlay only)."`.
+  - **`voronoi`**: `"Periodic Voronoi — legacy cellular"`; both `Vein Inlay` and `Ribbon Cut` radio options are enabled; `#generator-note` displays `"Periodic cellular Voronoi seams."`.
 
 ---
 

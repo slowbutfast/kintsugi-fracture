@@ -63,6 +63,14 @@
 
           <section class="panel">
             <h2 class="panel-title">Fracture Controls</h2>
+            <label class="field-label" for="generator-select">Generator</label>
+            <select class="xp-select" id="generator-select" aria-label="Fracture generator">
+              <option value="growth" selected>Rim Growth — branching lightning (default)</option>
+              <option value="shard">Shard Planes — tilted kintsugi seams</option>
+              <option value="voronoi">Periodic Voronoi — legacy cellular</option>
+            </select>
+            <div class="field-note" id="generator-note">Rim-seeded branching cracks.</div>
+
             <fieldset class="radio-group" id="mode-select" tabindex="0" aria-label="Fracture mode">
               <legend class="field-label">Mode</legend>
               <label class="radio-option">

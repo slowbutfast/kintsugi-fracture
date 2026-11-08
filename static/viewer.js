@@ -24,6 +24,8 @@ const ui = {
   ratio: $("ratio-slider"),
   ratioValue: $("ratio-value"),
   ratioCaption: $("ratio-caption"),
+  generator: $("generator-select"),
+  generatorNote: $("generator-note"),
   mode: $("mode-select"),
   seed: $("seed-input"),
   seamWidth: $("seam-width-input"),
@@ -235,6 +237,28 @@ function updateRatio() {
   }
 }
 
+function syncGeneratorMode() {
+  if (!ui.generator) return;
+  const gen = ui.generator.value;
+  const veinInput = document.querySelector('input[name="mode"][value="vein"]');
+  const ribbonInput = document.querySelector('input[name="mode"][value="ribbon"]');
+  if (gen === "shard") {
+    if (veinInput) veinInput.checked = true;
+    if (ribbonInput) ribbonInput.disabled = true;
+    if (ui.generatorNote) {
+      ui.generatorNote.textContent = "Tilted shard seams (Vein Inlay only).";
+    }
+  } else {
+    if (ribbonInput) ribbonInput.disabled = false;
+    if (ui.generatorNote) {
+      ui.generatorNote.textContent =
+        gen === "voronoi"
+          ? "Periodic cellular Voronoi seams."
+          : "Rim-seeded branching cracks.";
+    }
+  }
+}
+
 function setDownload(element, url, fallbackName) {
   if (!url) {
     element.classList.add("disabled");
@@ -387,6 +411,7 @@ async function fracture() {
   const modeInput = document.querySelector('input[name="mode"]:checked');
   form.append("R", ui.ratio.value);
   form.append("mode", modeInput ? modeInput.value : "vein");
+  form.append("generator", ui.generator ? ui.generator.value : "growth");
   form.append("seed", ui.seed.value || "7");
   if (ui.seamWidth.value !== "") {
     form.append("seam_width", ui.seamWidth.value);
@@ -464,6 +489,9 @@ function wireEvents() {
   });
 
   ui.ratio.addEventListener("input", updateRatio);
+  if (ui.generator) {
+    ui.generator.addEventListener("change", syncGeneratorMode);
+  }
   ui.fracture.addEventListener("click", fracture);
 
   document.querySelectorAll("[data-focus]").forEach((item) => {
@@ -491,6 +519,7 @@ async function start() {
   initViewer();
   wireEvents();
   updateRatio();
+  syncGeneratorMode();
   setDownload(ui.downloadCeramic, null);
   setDownload(ui.downloadGold, null);
   setDownload(ui.download3mf, null);

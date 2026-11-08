@@ -300,3 +300,66 @@ Full re-verification:
 ./.venv/bin/python -m unittest discover -s tests -p "test_*.py" -v
 ./.venv/bin/python tools/spike_contact_sheet.py --generator shard --output reports/contact_sheet_shard.png
 ```
+
+---
+
+## PATCH-01 Verification Audit: Expose Fracture Generator Selector in Web GUI & Docs
+
+### Summary of Changes (`PATCH-01`)
+- **`static/index.html` (`L64-L84`)**: Added `<label class="field-label" for="generator-select">Generator</label>`, `<select class="xp-select" id="generator-select" aria-label="Fracture generator">` (`growth` default, `shard`, `voronoi`), and `<div class="field-note" id="generator-note">Rim-seeded branching cracks.</div>` inside the `Fracture Controls` panel above the `Mode` `<fieldset>`.
+- **`static/viewer.js` (`L27-L28`, `L240-L260`, `L411`, `L491-L493`, `L518`)**: Wired `ui.generator` and `ui.generatorNote`, added `syncGeneratorMode()` to check `mode="vein"` and disable `mode="ribbon"` when `generator === "shard"`, and appended `form.append("generator", ui.generator ? ui.generator.value : "growth")` in `fracture()`.
+- **`static/xp.css` (`L301-L304`, `L312`)**: Styled `.radio-option input[type="radio"]:disabled + span` with `var(--on-surface-disabled)` and `cursor: not-allowed`.
+- **`README.md` (`L17-L63`)**: Documented the `growth`, `shard`, and `voronoi` fracture generators across "How it works" and "Usage" (CLI `--generator`, Python `generator=`, and Web GUI `Generator` dropdown).
+- **OpenSpec Artifacts**: Updated `openspec/changes/kintsugi-shard-seams/proposal.md`, `openspec/changes/kintsugi-shard-seams/design.md`, added delta spec `openspec/changes/kintsugi-shard-seams/specs/retro-web-gui/spec.md`, and synced `openspec/specs/retro-web-gui/spec.md`.
+- **`tests/test_crack_shard.py` (`L403-L428`)**: Added `test_web_ui_exposes_generator_select_and_shard_option` verifying `GET /` serves `#generator-select` (`growth`, `shard`, `voronoi`) and `#generator-note`, and `GET /viewer.js` wires `generator-select`, `syncGeneratorMode`, and `form.append("generator", ...)`.
+
+### Verbatim PATCH-01 Execution Logs
+
+1. **TDD Initial Failure**:
+```text
+$ .venv/bin/python -m unittest tests.test_crack_shard.CrackShardTestCase.test_web_ui_exposes_generator_select_and_shard_option -v
+test_web_ui_exposes_generator_select_and_shard_option (tests.test_crack_shard.CrackShardTestCase.test_web_ui_exposes_generator_select_and_shard_option) ... FAIL
+AssertionError: 'id="generator-select"' not found in '<!DOCTYPE html>...'
+Ran 1 test in 0.508s
+FAILED (failures=1)
+```
+
+2. **Post-Fix Verification & Regression Suite**:
+```text
+$ .venv/bin/python -m unittest tests.test_crack_shard.CrackShardTestCase.test_web_ui_exposes_generator_select_and_shard_option -v
+test_web_ui_exposes_generator_select_and_shard_option (tests.test_crack_shard.CrackShardTestCase.test_web_ui_exposes_generator_select_and_shard_option) ... ok
+----------------------------------------------------------------------
+Ran 1 test in 0.511s
+OK
+
+$ .venv/bin/python -m unittest tests/test_crack_shard.py tests/test_web_api.py -v
+test_api_fracture_shard_mode_validation (tests.test_crack_shard.CrackShardTestCase.test_api_fracture_shard_mode_validation) ... ok
+test_closed_loop_drift_bridge_closure_and_cyclic_clearance (tests.test_crack_shard.CrackShardTestCase.test_closed_loop_drift_bridge_closure_and_cyclic_clearance) ... ok
+test_closed_loop_quadrant_subarc_tortuosity (tests.test_crack_shard.CrackShardTestCase.test_closed_loop_quadrant_subarc_tortuosity) ... ok
+test_generate_kintsugi_mesh_shard_mode_watertight_and_ribbon_guard (tests.test_crack_shard.CrackShardTestCase.test_generate_kintsugi_mesh_shard_mode_watertight_and_ribbon_guard) ... ok
+test_open_wedge_seam_exact_truncation_and_rim_landing (tests.test_crack_shard.CrackShardTestCase.test_open_wedge_seam_exact_truncation_and_rim_landing) ... ok
+test_two_seam_verified_intersection_and_fallback (tests.test_crack_shard.CrackShardTestCase.test_two_seam_verified_intersection_and_fallback) ... ok
+test_web_ui_exposes_generator_select_and_shard_option (tests.test_crack_shard.CrackShardTestCase.test_web_ui_exposes_generator_select_and_shard_option) ... ok
+test_api_fracture_defaults_to_vein_growth (tests.test_web_api.WebApiTestCase.test_api_fracture_defaults_to_vein_growth) ... ok
+test_api_fracture_empty_gold_pipeline (tests.test_web_api.WebApiTestCase.test_api_fracture_empty_gold_pipeline) ... ok
+test_api_fracture_success (tests.test_web_api.WebApiTestCase.test_api_fracture_success) ... ok
+test_api_fracture_thin_wall_rejected (tests.test_web_api.WebApiTestCase.test_api_fracture_thin_wall_rejected) ... ok
+test_api_fracture_wealthy (tests.test_web_api.WebApiTestCase.test_api_fracture_wealthy) ... ok
+test_api_presets (tests.test_web_api.WebApiTestCase.test_api_presets) ... ok
+test_api_upload_too_large (tests.test_web_api.WebApiTestCase.test_api_upload_too_large) ... ok
+test_api_validate_ok (tests.test_web_api.WebApiTestCase.test_api_validate_ok) ... ok
+test_api_validate_open_mesh (tests.test_web_api.WebApiTestCase.test_api_validate_open_mesh) ... ok
+test_api_validate_thin_wall_rejected (tests.test_web_api.WebApiTestCase.test_api_validate_thin_wall_rejected) ... ok
+test_job_retention (tests.test_web_api.WebApiTestCase.test_job_retention) ... ok
+----------------------------------------------------------------------
+Ran 18 tests in 254.457s
+OK
+
+$ openspec validate --all --strict
+- Validating...
+✓ change/kintsugi-shard-seams
+✓ spec/mesh-fracture-engine
+✓ spec/multi-material-export
+✓ spec/retro-web-gui
+Totals: 4 passed, 0 failed (4 items)
+```
