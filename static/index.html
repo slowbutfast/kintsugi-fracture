@@ -28,15 +28,57 @@
       </div>
 
       <nav class="menu-bar" aria-label="Application menu">
-        <button class="menu-item" type="button"><span>File</span><u>F</u></button>
-        <button class="menu-item" type="button" data-focus="preset-select"><span>Presets</span><u>P</u></button>
-        <button class="menu-item" type="button" data-focus="mode-select"><span>Mode</span><u>M</u></button>
-        <button class="menu-item" type="button" data-focus="ratio-slider"><span>Help</span><u>H</u></button>
+        <div class="menu-entry">
+          <button class="menu-item" type="button" data-menu="file" aria-haspopup="true" aria-expanded="false" aria-controls="menu-file"><span>File</span><u>F</u></button>
+          <div class="menu-dropdown" id="menu-file" role="menu" aria-label="File" hidden>
+            <button class="menu-option" id="menu-upload" type="button" role="menuitem"><span class="menu-check" aria-hidden="true"></span><span>Upload Model…</span></button>
+            <button class="menu-option" id="menu-fracture" type="button" role="menuitem"><span class="menu-check" aria-hidden="true"></span><span>⚡ Fracture Mesh Now</span></button>
+            <div class="menu-separator" role="separator"></div>
+            <div class="menu-section-label">Download</div>
+            <a class="menu-option disabled" id="menu-download-ceramic" role="menuitem" href="#" aria-disabled="true"><span class="menu-check" aria-hidden="true"></span><span>Ceramic Body (.stl)</span></a>
+            <a class="menu-option disabled" id="menu-download-gold" role="menuitem" href="#" aria-disabled="true"><span class="menu-check" aria-hidden="true"></span><span>Gold Seams (.stl)</span></a>
+            <a class="menu-option disabled" id="menu-download-3mf" role="menuitem" href="#" aria-disabled="true"><span class="menu-check" aria-hidden="true"></span><span>Kintsugi Assembly (.3mf)</span></a>
+          </div>
+        </div>
+        <div class="menu-entry">
+          <button class="menu-item" type="button" data-menu="presets" aria-haspopup="true" aria-expanded="false" aria-controls="menu-presets"><span>Presets</span><u>P</u></button>
+          <div class="menu-dropdown" id="menu-presets" role="menu" aria-label="Presets" hidden>
+            <div class="menu-section-label">Bundled Presets</div>
+            <button class="menu-option disabled" type="button" role="menuitem" disabled><span class="menu-check" aria-hidden="true"></span><span>Loading presets…</span></button>
+          </div>
+        </div>
+        <div class="menu-entry">
+          <button class="menu-item" type="button" data-menu="mode" aria-haspopup="true" aria-expanded="false" aria-controls="menu-mode"><span>Mode</span><u>M</u></button>
+          <div class="menu-dropdown" id="menu-mode" role="menu" aria-label="Mode" hidden>
+            <div class="menu-section-label">Generator</div>
+            <button class="menu-option" type="button" role="menuitemradio" aria-checked="true" data-generator="growth"><span class="menu-check" aria-hidden="true"></span><span>Rim Growth</span></button>
+            <button class="menu-option" type="button" role="menuitemradio" aria-checked="false" data-generator="shard"><span class="menu-check" aria-hidden="true"></span><span>Shard Planes</span></button>
+            <button class="menu-option" type="button" role="menuitemradio" aria-checked="false" data-generator="voronoi"><span class="menu-check" aria-hidden="true"></span><span>Periodic Voronoi</span></button>
+            <div class="menu-separator" role="separator"></div>
+            <div class="menu-section-label">Cut Mode</div>
+            <button class="menu-option" type="button" role="menuitemradio" aria-checked="true" data-mode="vein"><span class="menu-check" aria-hidden="true"></span><span>Vein Inlay</span></button>
+            <button class="menu-option" type="button" role="menuitemradio" aria-checked="false" data-mode="ribbon"><span class="menu-check" aria-hidden="true"></span><span>Ribbon Cut</span></button>
+          </div>
+        </div>
+        <div class="menu-entry">
+          <button class="menu-item" type="button" data-menu="help" aria-haspopup="true" aria-expanded="false" aria-controls="menu-help"><span>Help</span><u>H</u></button>
+          <div class="menu-dropdown" id="menu-help" role="menu" aria-label="Help" hidden>
+            <button class="menu-option" id="menu-reset-camera" type="button" role="menuitem"><span class="menu-check" aria-hidden="true"></span><span>Reset 3D Camera View</span></button>
+            <div class="menu-separator" role="separator"></div>
+            <button class="menu-option" id="menu-about" type="button" role="menuitem"><span class="menu-check" aria-hidden="true"></span><span>About Kintsugi Studio 2001…</span></button>
+          </div>
+        </div>
       </nav>
 
       <div class="window-body">
         <aside class="sidebar">
-          <section class="panel">
+          <div class="mobile-tabs" id="mobile-tabs" role="tablist" aria-label="Property sheet">
+            <button class="mobile-tab" type="button" role="tab" data-tab="model" aria-selected="false">Model</button>
+            <button class="mobile-tab active" type="button" role="tab" data-tab="fracture" aria-selected="true">Fracture</button>
+            <button class="mobile-tab" type="button" role="tab" data-tab="export" aria-selected="false">Export <span class="tab-badge" id="export-badge" hidden>●</span></button>
+          </div>
+
+          <section class="panel" data-tab-panel="model">
             <h2 class="panel-title">Model Source</h2>
             <label class="field-label" for="preset-select">Bundled preset</label>
             <select class="xp-select" id="preset-select" aria-label="Bundled preset model">
@@ -52,7 +94,7 @@
             <div class="field-note" id="model-note">No custom file selected.</div>
           </section>
 
-          <section class="panel">
+          <section class="panel mobile-panel-active" data-tab-panel="fracture">
             <h2 class="panel-title">Inequality Metric</h2>
             <div class="slider-row">
               <input class="xp-slider" id="ratio-slider" type="range" min="0" max="2" step="0.01" value="0.5" />
@@ -61,7 +103,7 @@
             <div class="metric-caption" id="ratio-caption">Moderate inequality</div>
           </section>
 
-          <section class="panel">
+          <section class="panel mobile-panel-active" data-tab-panel="fracture">
             <h2 class="panel-title">Fracture Controls</h2>
             <label class="field-label" for="generator-select">Generator</label>
             <select class="xp-select" id="generator-select" aria-label="Fracture generator">
@@ -94,7 +136,7 @@
             <span class="action-bolt" aria-hidden="true">⚡</span> FRACTURE MESH
           </button>
 
-          <section class="panel downloads-panel">
+          <section class="panel downloads-panel" data-tab-panel="export">
             <h2 class="panel-title">Slicer Assets</h2>
             <a class="download-button disabled" id="download-ceramic" href="#" download>Ceramic body (.stl)</a>
             <a class="download-button disabled" id="download-gold" href="#" download>Gold seams (.stl)</a>
@@ -124,6 +166,31 @@
         <div class="status-cell" id="status-mesh">Faces: — | Watertight: —</div>
         <div class="status-cell" id="status-kernel">Kernel: Manifold3D v3.5</div>
       </footer>
+
+      <div class="xp-dialog" id="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-dialog-title" hidden>
+        <div class="xp-dialog-card">
+          <div class="titlebar">
+            <div class="titlebar-icon" aria-hidden="true">◈</div>
+            <div class="titlebar-text" id="help-dialog-title">About Kintsugi Studio 2001</div>
+            <div class="titlebar-controls">
+              <button class="titlebar-button close" id="help-dialog-close" type="button" aria-label="Close">✕</button>
+            </div>
+          </div>
+          <div class="xp-dialog-body">
+            <p class="xp-dialog-heading">Kintsugi Studio 2001</p>
+            <p>Fracture a vessel along its inequality metric, then gild the seams with gold.</p>
+            <div class="xp-dialog-section-label">Pipeline</div>
+            <ol class="xp-dialog-steps">
+              <li>Choose a bundled preset or upload a watertight <code>.stl</code> / <code>.obj</code> model.</li>
+              <li>Tune <strong>R</strong>, the generator, seam width, and seed.</li>
+              <li>Fracture the mesh, inspect the 3D result, and export ceramic, gold, and 3MF assets.</li>
+            </ol>
+          </div>
+          <div class="xp-dialog-actions">
+            <button class="action-button" id="help-dialog-ok" type="button">OK</button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
