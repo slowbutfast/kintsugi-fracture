@@ -3,10 +3,20 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import * as fflate from "three/addons/libs/fflate.module.js";
+import { read3mf } from "./threemf.js";
+import {
+  DEFAULT_LIMITS,
+  checkUploadAllowed,
+  limitsFromHealth,
+  listFormats,
+  uploadSubtitle,
+} from "./upload.js";
 
 const $ = (id) => document.getElementById(id);
 
 const state = {
+  limits: { ...DEFAULT_LIMITS, acceptedFormats: [...DEFAULT_LIMITS.acceptedFormats] },
   presets: [],
   currentPreset: "",
   customFile: null,
@@ -20,6 +30,7 @@ const ui = {
   preset: $("preset-select"),
   fileInput: $("file-input"),
   uploadZone: $("upload-zone"),
+  uploadSubtitle: $("upload-subtitle"),
   modelNote: $("model-note"),
   ratio: $("ratio-slider"),
   ratioValue: $("ratio-value"),
@@ -526,10 +537,13 @@ function updateMeshStatus(extra = "", tone = "") {
   ui.statusMesh.textContent = `Faces: ${Math.round(faces).toLocaleString()} | Parts: ${parts}${suffix}`;
   ui.statusMesh.classList.remove("status-success", "status-error");
   if (tone) ui.statusMesh.classList.add(`status-${tone}`);
+  // Long messages are truncated by the status bar; the full text is on hover.
+  ui.statusMesh.title = ui.statusMesh.textContent;
 }
 
 function setStatus(text) {
   ui.statusOperation.textContent = text;
+  ui.statusOperation.title = text;
 }
 
 function setBusy(busy) {
@@ -697,13 +711,62 @@ async function loadPresets() {
   }
 }
 
+// A 3MF preview failure is not fatal: the server's validation decides.
+async function previewThreeMf(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const { positions } = read3mf(buffer, { inflateSync: fflate.inflateSync });
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    clearModel();
+    addGeometry(geometry, ceramicMaterial, file.name);
+    frameObject();
+  } catch (error) {
+    clearModel();
+    console.warn(
+      `[kintsugi] 3MF preview failed for ${file.name}; the server will still validate it`,
+      error
+    );
+    setStatus(`Preview unavailable for ${file.name}: ${error.message}. Checking on the server…`);
+  }
+}
+
+async function loadLimits() {
+  try {
+    const body = await requestJson("Load limits", "/api/health");
+    state.limits = limitsFromHealth(body);
+  } catch (error) {
+    console.warn("[kintsugi] could not read /api/health; using default upload limits", error);
+  }
+  applyUploadLimits();
+}
+
+function applyUploadLimits() {
+  const formats = state.limits.acceptedFormats;
+  if (ui.fileInput) ui.fileInput.accept = formats.join(",");
+  if (ui.uploadSubtitle) ui.uploadSubtitle.textContent = uploadSubtitle(state.limits);
+  if (ui.uploadZone) {
+    const names = formats.map((suffix) => suffix.slice(1).toUpperCase());
+    ui.uploadZone.setAttribute("aria-label", `Upload a custom ${listFormats(names)}`);
+  }
+}
+
 async function handleCustomFile(file) {
   if (!file) return;
-  const normalized = file.name.toLowerCase();
-  if (!normalized.endsWith(".stl") && !normalized.endsWith(".obj")) {
-    setStatus("Only .stl and .obj files are supported");
+  // Refuse before sending anything: a platform limit (Vercel: 4.5 MB) answers
+  // with a plain-text 413 that the app can no longer explain.
+  const refusal = checkUploadAllowed(file, state.limits);
+  if (refusal) {
+    console.warn(`[kintsugi] refused ${file.name} before upload: ${refusal}`, {
+      bytes: file.size,
+      limits: state.limits,
+    });
+    setStatus(refusal);
+    updateMeshStatus("Upload refused", "error");
+    ui.fileInput.value = ""; // choosing the same file again must fire "change"
     return;
   }
+  const normalized = file.name.toLowerCase();
   state.customFile = file;
   state.currentPreset = "";
   state.uploadValid = false;
@@ -720,6 +783,8 @@ async function handleCustomFile(file) {
       clearModel();
       addGeometry(geometry, ceramicMaterial, file.name);
       frameObject();
+    } else if (normalized.endsWith(".3mf")) {
+      await previewThreeMf(file);
     } else {
       const text = await file.text();
       const group = new OBJLoader().parse(text);
@@ -1059,6 +1124,7 @@ async function start() {
   setDownload(ui.menuDownloadGold, null);
   setDownload(ui.menuDownload3mf, null);
   switchMobileTab("fracture");
+  await loadLimits();
   await loadPresets();
 }
 

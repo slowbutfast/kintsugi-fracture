@@ -36,6 +36,8 @@ import trimesh
 from scipy import ndimage
 from scipy.spatial import Voronoi, cKDTree
 
+import mesh_formats
+
 __all__ = [
     "compute_severity",
     "compute_parameters",
@@ -251,6 +253,10 @@ def _clean_mesh(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
 
 
 def _load_trimesh(path: str | Path) -> trimesh.Trimesh:
+    if Path(path).suffix.lower() == ".3mf":
+        # trimesh's 3MF loader needs networkx and lxml, which are not declared
+        # dependencies; mesh_formats reads the package with the stdlib only.
+        return mesh_formats.load_3mf(path)
     loaded = trimesh.load(str(path), force="mesh", process=False)
     if isinstance(loaded, trimesh.Scene):
         if not loaded.geometry:
@@ -4896,7 +4902,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Fracture a vessel mesh into a Kintsugi ceramic/gold assembly."
     )
-    parser.add_argument("input", type=Path, help="Input .stl or .obj vessel mesh")
+    parser.add_argument("input", type=Path, help="Input .stl, .obj or .3mf vessel mesh")
     parser.add_argument("-o", "--output-dir", type=Path, default=Path("output"))
     parser.add_argument(
         "-R",

@@ -86,11 +86,11 @@
               <option value="">Loading presets…</option>
             </select>
 
-            <div class="upload-zone" id="upload-zone" tabindex="0" role="button" aria-label="Upload a custom STL or OBJ">
+            <div class="upload-zone" id="upload-zone" tabindex="0" role="button" aria-label="Upload a custom STL, OBJ or 3MF">
               <div class="upload-icon" aria-hidden="true">⇪</div>
               <div class="upload-title">Drop a custom model</div>
-              <div class="upload-subtitle">.stl or .obj · watertight only</div>
-              <input type="file" id="file-input" accept=".stl,.obj" hidden />
+              <div class="upload-subtitle" id="upload-subtitle">.stl, .obj or .3mf · watertight only</div>
+              <input type="file" id="file-input" accept=".stl,.obj,.3mf" hidden />
             </div>
             <div class="field-note" id="model-note">No custom file selected.</div>
           </section>
@@ -259,7 +259,7 @@
             <p>Fracture a vessel along its inequality metric, then gild the seams with gold.</p>
             <div class="xp-dialog-section-label">Pipeline</div>
             <ol class="xp-dialog-steps">
-              <li>Choose a bundled preset or upload a watertight <code>.stl</code> / <code>.obj</code> model.</li>
+              <li>Choose a bundled preset or upload a watertight <code>.stl</code>, <code>.obj</code> or <code>.3mf</code> model (a 3MF must hold a single object).</li>
               <li>Tune <strong>R</strong>, the generator, seam width, and seed.</li>
               <li>Fracture the mesh, inspect the 3D result, and export ceramic, gold, and 3MF assets.</li>
             </ol>
