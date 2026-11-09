@@ -515,6 +515,35 @@ select {
   line-height: 1.25;
 }
 
+.hybrid-fieldset {
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm);
+  border: 1px solid var(--border-shadow);
+  background: var(--surface);
+}
+
+.hybrid-fieldset[hidden] {
+  display: none;
+}
+
+.hybrid-fieldset .field-label {
+  font-size: 11px;
+}
+
+.hybrid-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.hybrid-field .field-label {
+  margin-bottom: 2px;
+}
+
+.hybrid-field .xp-select {
+  font-size: 11px;
+}
+
 /* ------------------------------------------------------------------ */
 /* Controls                                                            */
 /* ------------------------------------------------------------------ */
@@ -930,6 +959,15 @@ select {
 
   .panel[data-tab-panel]:not(.mobile-panel-active) {
     display: none;
+  }
+
+  .hybrid-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hybrid-field .xp-select {
+    font-size: 16px;
+    min-height: 40px;
   }
 
   .xp-select,

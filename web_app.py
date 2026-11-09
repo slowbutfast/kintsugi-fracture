@@ -178,12 +178,30 @@ def api_fracture(
     seed: int = Form(default=42),
     seam_width: float | None = Form(default=None),
     generator: str = Form(default="growth"),
+    through_count: str | None = Form(default=None),
+    through_shape: str | None = Form(default=None),
+    tilt_deg: str | None = Form(default=None),
+    hairline_count: str | None = Form(default=None),
+    hairline_reach: str | None = Form(default=None),
+    roughness: str | None = Form(default=None),
 ) -> JSONResponse:
     job_id = uuid.uuid4().hex[:12]
     job_dir = OUTPUT_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
     _prune_jobs()
     three_mf = job_dir / "kintsugi_assembly.3mf"
+    hybrid_options = {
+        key: value
+        for key, value in {
+            "through_count": through_count,
+            "through_shape": through_shape,
+            "tilt_deg": tilt_deg,
+            "hairline_count": hairline_count,
+            "hairline_reach": hairline_reach,
+            "roughness": roughness,
+        }.items()
+        if value is not None
+    } or None
 
     try:
         input_path = _resolve_input(job_dir, file, preset)
@@ -196,6 +214,7 @@ def api_fracture(
             seam_width=seam_width,
             output_3mf_path=three_mf,
             generator=generator,
+            hybrid_options=hybrid_options,
         )
     except ValueError as exc:
         # Remove the half-created job so failed runs do not leak assets.
@@ -228,6 +247,7 @@ def api_fracture(
         {
             "job_id": job_id,
             "num_cracks": result["num_cracks"],
+            "num_fragments": result.get("num_fragments", 1),
             "seams_omitted": seams_omitted,
             "seams_omitted_reason": seams_omitted_reason,
             "cutter_attempts": result.get("cutter_attempts", 0),

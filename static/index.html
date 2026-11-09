@@ -52,6 +52,7 @@
           <div class="menu-dropdown" id="menu-mode" role="menu" aria-label="Mode" hidden>
             <div class="menu-section-label">Generator</div>
             <button class="menu-option" type="button" role="menuitemradio" aria-checked="true" data-generator="growth"><span class="menu-check" aria-hidden="true"></span><span>Rim Growth</span></button>
+            <button class="menu-option" type="button" role="menuitemradio" aria-checked="false" data-generator="hybrid"><span class="menu-check" aria-hidden="true"></span><span>Hybrid — macro shards + interior hairlines</span></button>
             <button class="menu-option" type="button" role="menuitemradio" aria-checked="false" data-generator="shard"><span class="menu-check" aria-hidden="true"></span><span>Shard Planes</span></button>
             <button class="menu-option" type="button" role="menuitemradio" aria-checked="false" data-generator="voronoi"><span class="menu-check" aria-hidden="true"></span><span>Periodic Voronoi</span></button>
             <div class="menu-separator" role="separator"></div>
@@ -108,10 +109,87 @@
             <label class="field-label" for="generator-select">Generator</label>
             <select class="xp-select" id="generator-select" aria-label="Fracture generator">
               <option value="growth" selected>Rim Growth — branching lightning (default)</option>
+              <option value="hybrid" data-generator="hybrid">Hybrid — macro shards + interior hairlines</option>
               <option value="shard">Shard Planes — tilted kintsugi seams</option>
               <option value="voronoi">Periodic Voronoi — legacy cellular</option>
             </select>
             <div class="field-note" id="generator-note">Rim-seeded branching cracks.</div>
+
+            <fieldset class="hybrid-fieldset" id="hybrid-settings" hidden>
+              <legend class="field-label">Hybrid Settings</legend>
+              <div class="hybrid-grid">
+                <div class="hybrid-field">
+                  <label class="field-label" for="hybrid-through-count">Through fractures</label>
+                  <select class="xp-select" id="hybrid-through-count" aria-label="Through fracture count">
+                    <option value="auto" selected>Auto</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                  </select>
+                </div>
+                <div class="hybrid-field">
+                  <label class="field-label" for="hybrid-through-shape">Through shape</label>
+                  <select class="xp-select" id="hybrid-through-shape" aria-label="Through fracture shape">
+                    <option value="auto" selected>Auto (Rim-to-Rim Wedge)</option>
+                    <option value="wedge">Wedge</option>
+                    <option value="loop">Loop</option>
+                  </select>
+                </div>
+                <div class="hybrid-field">
+                  <label class="field-label" for="hybrid-tilt-deg">Tilt (deg)</label>
+                  <select class="xp-select" id="hybrid-tilt-deg" aria-label="Shard tilt in degrees">
+                    <option value="auto" selected>Auto</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                    <option value="25">25</option>
+                    <option value="30">30</option>
+                  </select>
+                </div>
+                <div class="hybrid-field">
+                  <label class="field-label" for="hybrid-hairline-count">Hairlines</label>
+                  <select class="xp-select" id="hybrid-hairline-count" aria-label="Hairline count">
+                    <option value="auto" selected>Auto</option>
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                  </select>
+                </div>
+                <div class="hybrid-field">
+                  <label class="field-label" for="hybrid-hairline-reach">Hairline reach</label>
+                  <select class="xp-select" id="hybrid-hairline-reach" aria-label="Hairline reach ratio">
+                    <option value="auto" selected>Auto</option>
+                    <option value="0.2">0.2</option>
+                    <option value="0.4">0.4</option>
+                    <option value="0.6">0.6</option>
+                    <option value="0.8">0.8</option>
+                    <option value="1.0">1.0</option>
+                  </select>
+                </div>
+                <div class="hybrid-field">
+                  <label class="field-label" for="hybrid-roughness">Roughness</label>
+                  <select class="xp-select" id="hybrid-roughness" aria-label="Hybrid roughness scale">
+                    <option value="auto" selected>Auto</option>
+                    <option value="0.5">0.50</option>
+                    <option value="0.75">0.75</option>
+                    <option value="1.0">1.00</option>
+                    <option value="1.25">1.25</option>
+                    <option value="1.5">1.50</option>
+                    <option value="2.0">2.00</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field-note" id="hybrid-resolved-note">Auto values resolve from R when you fracture.</div>
+            </fieldset>
 
             <fieldset class="radio-group" id="mode-select" tabindex="0" aria-label="Fracture mode">
               <legend class="field-label">Mode</legend>

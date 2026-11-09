@@ -26,6 +26,14 @@ const ui = {
   ratioCaption: $("ratio-caption"),
   generator: $("generator-select"),
   generatorNote: $("generator-note"),
+  hybridSettings: $("hybrid-settings"),
+  hybridThroughCount: $("hybrid-through-count"),
+  hybridThroughShape: $("hybrid-through-shape"),
+  hybridTiltDeg: $("hybrid-tilt-deg"),
+  hybridHairlineCount: $("hybrid-hairline-count"),
+  hybridHairlineReach: $("hybrid-hairline-reach"),
+  hybridRoughness: $("hybrid-roughness"),
+  hybridResolvedNote: $("hybrid-resolved-note"),
   mode: $("mode-select"),
   seed: $("seed-input"),
   seamWidth: $("seam-width-input"),
@@ -228,7 +236,7 @@ function syncMenuChecks() {
   const mode = modeInput ? modeInput.value : "vein";
   const ribbonOption = ui.menuMode.querySelector('[data-mode="ribbon"]');
   if (ribbonOption) {
-    const ribbonDisabled = generator === "shard";
+    const ribbonDisabled = generator === "shard" || generator === "hybrid";
     ribbonOption.classList.toggle("disabled", ribbonDisabled);
     ribbonOption.setAttribute(
       "aria-disabled",
@@ -381,16 +389,70 @@ function updateRatio() {
   }
 }
 
+function hybridValue(auto, value, format = String) {
+  return auto ? `Auto (${format(value)})` : format(value);
+}
+
+function renderHybridResolved(hybrid, numFragments) {
+  if (!ui.hybridResolvedNote || !hybrid) return;
+  const through = hybridValue(
+    hybrid.auto_through_count,
+    hybrid.through_count
+  );
+  const shape = hybridValue(
+    hybrid.auto_through_shape,
+    hybrid.through_shape || "auto"
+  );
+  const tilt = hybridValue(hybrid.auto_tilt_deg, hybrid.tilt_deg, (value) =>
+    `${Number(value).toFixed(0)}°`
+  );
+  const hairlines = hybridValue(
+    hybrid.auto_hairline_count,
+    hybrid.hairline_count
+  );
+  const reach = hybridValue(
+    hybrid.auto_hairline_reach,
+    hybrid.hairline_reach,
+    (value) => Number(value).toFixed(2)
+  );
+  const roughness = hybridValue(
+    hybrid.auto_roughness,
+    hybrid.roughness,
+    (value) => Number(value).toFixed(2)
+  );
+  const fragments =
+    typeof numFragments === "number" ? numFragments : hybrid.num_fragments;
+  ui.hybridResolvedNote.textContent =
+    `Through ${through} · shape ${shape} · tilt ${tilt} · ` +
+    `hairlines ${hairlines} · reach ${reach} · ` +
+    `roughness ${roughness} · fragments ${fragments}`;
+}
+
+function syncHybridSettings() {
+  if (!ui.generator) return;
+  const hybrid = ui.generator.value === "hybrid";
+  if (ui.hybridSettings) ui.hybridSettings.hidden = !hybrid;
+  if (ui.generatorNote) {
+    if (hybrid) {
+      ui.generatorNote.textContent =
+        "Macro shard seams partition the wall; rim-aware hairlines fill each fragment (Vein Inlay only).";
+    }
+  }
+}
+
 function syncGeneratorMode() {
   if (!ui.generator) return;
   const gen = ui.generator.value;
   const veinInput = document.querySelector('input[name="mode"][value="vein"]');
   const ribbonInput = document.querySelector('input[name="mode"][value="ribbon"]');
-  if (gen === "shard") {
+  if (gen === "shard" || gen === "hybrid") {
     if (veinInput) veinInput.checked = true;
     if (ribbonInput) ribbonInput.disabled = true;
     if (ui.generatorNote) {
-      ui.generatorNote.textContent = "Tilted shard seams (Vein Inlay only).";
+      ui.generatorNote.textContent =
+        gen === "hybrid"
+          ? "Macro shard seams partition the wall; rim-aware hairlines fill each fragment (Vein Inlay only)."
+          : "Tilted shard seams (Vein Inlay only).";
     }
   } else {
     if (ribbonInput) ribbonInput.disabled = false;
@@ -401,6 +463,7 @@ function syncGeneratorMode() {
           : "Rim-seeded branching cracks.";
     }
   }
+  syncHybridSettings();
   syncMenuChecks();
 }
 
@@ -569,12 +632,28 @@ async function fracture() {
     form.append("preset", preset);
   }
   const modeInput = document.querySelector('input[name="mode"]:checked');
+  const generator = ui.generator ? ui.generator.value : "growth";
   form.append("R", ui.ratio.value);
   form.append("mode", modeInput ? modeInput.value : "vein");
-  form.append("generator", ui.generator ? ui.generator.value : "growth");
+  form.append("generator", generator);
   form.append("seed", ui.seed.value || "7");
   if (ui.seamWidth.value !== "") {
     form.append("seam_width", ui.seamWidth.value);
+  }
+  if (generator === "hybrid") {
+    const hybridKnobs = [
+      ["through_count", ui.hybridThroughCount],
+      ["through_shape", ui.hybridThroughShape],
+      ["tilt_deg", ui.hybridTiltDeg],
+      ["hairline_count", ui.hybridHairlineCount],
+      ["hairline_reach", ui.hybridHairlineReach],
+      ["roughness", ui.hybridRoughness],
+    ];
+    for (const [name, element] of hybridKnobs) {
+      if (element && element.value !== "auto") {
+        form.append(name, element.value);
+      }
+    }
   }
 
   setBusy(true);
@@ -601,17 +680,25 @@ async function fracture() {
     const volumes = body.volumes;
     const seamsOmitted = Boolean(body.seams_omitted);
     const currentRatio = Number(ui.ratio.value);
+    const hybrid = body.parameters ? body.parameters.hybrid : null;
+    if (hybrid) {
+      renderHybridResolved(hybrid, body.num_fragments);
+    }
+    const fragmentSuffix =
+      typeof body.num_fragments === "number" && body.num_fragments > 1
+        ? ` · ${body.num_fragments} fragments`
+        : "";
     let label;
     if (seamsOmitted && currentRatio < 1.0) {
       label = "Seams Omitted";
     } else if (body.num_cracks === 0) {
       label = "Pristine / Wealthy (0 cracks)";
     } else {
-      label = `${body.num_cracks} cracks · gold ${volumes.gold.toFixed(1)} mm³`;
+      label = `${body.num_cracks} cracks${fragmentSuffix} · gold ${volumes.gold.toFixed(1)} mm³`;
     }
     setStatus(label);
     updateMeshStatus(
-      `Ceramic ${volumes.ceramic.toFixed(1)} mm³ · Gold ${volumes.gold.toFixed(1)} mm³`
+      `Ceramic ${volumes.ceramic.toFixed(1)} mm³ · Gold ${volumes.gold.toFixed(1)} mm³${fragmentSuffix}`
     );
   } catch (error) {
     setStatus(`Fracture failed: ${error.message}`);

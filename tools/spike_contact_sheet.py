@@ -11,7 +11,7 @@ effects, so it must not be imported here.
 
 Usage:
     .venv/bin/python tools/spike_contact_sheet.py [--output PATH]
-        [--generator {growth,shard,both}] [--repo PATH] [--panel-px INT]
+        [--generator {growth,shard,hybrid,both,all}] [--repo PATH] [--panel-px INT]
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = "reports/contact_sheet.png"
 DEFAULT_SHARD_OUTPUT = "reports/contact_sheet_shard.png"
+DEFAULT_HYBRID_OUTPUT = "reports/contact_sheet_hybrid.png"
 DEFAULT_PANEL_PX = 340
 
 BACKGROUND = (30, 34, 44)
@@ -488,15 +489,19 @@ def main(argv=None) -> int:
         default=None,
         help=(
             "Output PNG path (default: reports/contact_sheet.png for growth, "
-            "reports/contact_sheet_shard.png for shard; 'both' writes the "
-            "growth and shard sheets side by side in reports/)"
+            "reports/contact_sheet_shard.png for shard, "
+            "reports/contact_sheet_hybrid.png for hybrid; 'both' writes the "
+            "growth and shard sheets side by side, and 'all' adds hybrid)"
         ),
     )
     parser.add_argument(
         "--generator",
-        choices=("growth", "shard", "both"),
+        choices=("growth", "shard", "hybrid", "both", "all"),
         default="growth",
-        help="Crack generator to render (default: growth)",
+        help=(
+            "Crack generator to render (default: growth; 'both' renders "
+            "growth + shard; 'all' renders growth + shard + hybrid)"
+        ),
     )
     parser.add_argument(
         "--repo",
@@ -533,10 +538,18 @@ def main(argv=None) -> int:
             plans = [("growth", Path(DEFAULT_OUTPUT))]
         elif args.generator == "shard":
             plans = [("shard", Path(DEFAULT_SHARD_OUTPUT))]
+        elif args.generator == "hybrid":
+            plans = [("hybrid", Path(DEFAULT_HYBRID_OUTPUT))]
+        elif args.generator == "both":
+            plans = [
+                ("growth", Path(DEFAULT_OUTPUT)),
+                ("shard", Path(DEFAULT_SHARD_OUTPUT)),
+            ]
         else:
             plans = [
                 ("growth", Path(DEFAULT_OUTPUT)),
                 ("shard", Path(DEFAULT_SHARD_OUTPUT)),
+                ("hybrid", Path(DEFAULT_HYBRID_OUTPUT)),
             ]
     else:
         output = Path(args.output)
@@ -545,6 +558,18 @@ def main(argv=None) -> int:
                 f"{output.stem}_shard{output.suffix}"
             )
             plans = [("growth", output), ("shard", shard_output)]
+        elif args.generator == "all":
+            shard_output = output.with_name(
+                f"{output.stem}_shard{output.suffix}"
+            )
+            hybrid_output = output.with_name(
+                f"{output.stem}_hybrid{output.suffix}"
+            )
+            plans = [
+                ("growth", output),
+                ("shard", shard_output),
+                ("hybrid", hybrid_output),
+            ]
         else:
             plans = [(args.generator, output)]
 
