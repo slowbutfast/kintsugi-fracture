@@ -705,6 +705,21 @@ class WebUploadLimitAndFormatsTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertGreater(response.json()["num_cracks"], 0)
 
+    def test_corrupt_3mf_is_reported_as_invalid_not_a_server_error(self) -> None:
+        damaged = bytearray(self.bowl_3mf_bytes)
+        # Flip bytes in the middle of the archive's first compressed entry.
+        middle = len(damaged) // 3
+        for offset in range(middle, middle + 16):
+            damaged[offset] ^= 0xFF
+        response = self.client.post(
+            "/api/validate",
+            files={"file": ("damaged.3mf", bytes(damaged), "model/3mf")},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertFalse(body["valid"], body)
+        self.assertTrue(body["detail"])
+
     def test_ui_advertises_3mf_and_serves_the_viewer_modules(self) -> None:
         index = self.client.get("/").text
         self.assertIn('accept=".stl,.obj,.3mf"', index)

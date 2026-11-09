@@ -21,10 +21,12 @@ before parsing (which removes entity-expansion attacks without needing
 
 from __future__ import annotations
 
+import lzma
 import math
 import posixpath
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -84,15 +86,70 @@ class _Package:
         self.archive = archive
         self._roots: dict[str, ET.Element] = {}
         self._objects: dict[str, dict[str, _Object]] = {}
+        self._consumed = 0  # decompressed bytes read so far, across all parts
 
     # -- raw access --------------------------------------------------------
-    def read(self, name: str) -> bytes:
+    def _read_bounded(self, name: str, limit: int) -> bytes | None:
+        """Decompress an entry, never reading past its declared size or ``limit``.
+
+        Returns ``None`` when an honest entry is larger than ``limit``.  A zip's
+        declared sizes are attacker-controlled, but an honest entry never
+        decompresses to *more* than its declared size, so that is the cut-off
+        (``zipfile`` also truncates at it, which turns an understated header
+        into a CRC failure).  Reading a bounded number of bytes, instead of
+        ``archive.read(name)``, stops a small file from inflating gigabytes
+        before that check can happen.  Every error the zip layer can raise for
+        a damaged or unsupported entry becomes a ``ValueError`` (the API
+        reports those as an invalid model, not a 500).
+        """
+        limit = max(limit, 0)
         try:
-            return self.archive.read(name)
+            declared = self.archive.getinfo(name).file_size
+            cap = min(limit, declared)
+            with self.archive.open(name) as handle:
+                data = handle.read(cap + 1)
         except KeyError:
             raise ValueError(
                 f"3MF part '{name}' was not found in the package"
             ) from None
+        except (
+            zipfile.BadZipFile,
+            zlib.error,
+            lzma.LZMAError,
+            EOFError,
+            NotImplementedError,
+            RuntimeError,
+            OSError,
+        ) as exc:
+            raise ValueError(
+                f"3MF part '{name}' is corrupt or uses an unsupported zip "
+                f"feature: {exc}"
+            ) from exc
+        # ``data`` can only exceed ``cap`` when the limit is below the declared
+        # size, i.e. an honest entry that is simply too big.
+        return None if len(data) > cap else data
+
+    def _remaining(self) -> int:
+        return MAX_UNCOMPRESSED_BYTES - self._consumed
+
+    def read(self, name: str) -> bytes:
+        """Read a part the geometry needs; over the package budget is an error."""
+        data = self._read_bounded(name, self._remaining())
+        if data is None:
+            raise ValueError(
+                "3MF package is too large when uncompressed (more than "
+                f"{MAX_UNCOMPRESSED_BYTES / (1024 * 1024):.0f} MB decompressed, "
+                f"while reading '{name}')"
+            )
+        self._consumed += len(data)
+        return data
+
+    def read_optional(self, name: str, limit: int) -> bytes | None:
+        """Read a hint-only part (vendor config); ``None`` if over ``limit``."""
+        data = self._read_bounded(name, min(limit, self._remaining()))
+        if data is not None:
+            self._consumed += len(data)
+        return data
 
     def has(self, name: str) -> bool:
         return name in self.archive.namelist()
@@ -256,10 +313,9 @@ def _reject_slicer_modifiers(package: _Package) -> None:
         lowered = name.lower()
         if not (lowered.startswith("metadata/") and lowered.endswith(".config")):
             continue
-        info = package.archive.getinfo(name)
-        if info.file_size > MAX_CONFIG_BYTES:
-            continue
-        data = package.read(name)
+        data = package.read_optional(name, MAX_CONFIG_BYTES)
+        if data is None:
+            continue  # over the size limit: a hint we do not need to trust
         if b"<!doctype" in data.lower():
             continue  # never parsed, never trusted; the config is only a hint
         try:
@@ -291,6 +347,8 @@ def load_3mf(path: str | Path) -> trimesh.Trimesh:
     except (zipfile.BadZipFile, OSError) as exc:
         raise ValueError(f"not a valid 3MF (ZIP) package: {exc}") from exc
     with archive:
+        # A cheap early reject for honest oversize packages.  The headers can
+        # lie, so the real guard is the bounded read in _Package._read_bounded.
         total = sum(info.file_size for info in archive.infolist())
         if total > MAX_UNCOMPRESSED_BYTES:
             raise ValueError(

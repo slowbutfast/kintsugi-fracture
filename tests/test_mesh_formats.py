@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import struct
 import tempfile
+import tracemalloc
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -372,6 +375,99 @@ class MeshFormatsTestCase(unittest.TestCase):
             self.assertRejects(path, "large")
         with mock.patch.object(mesh_formats, "MAX_TRIANGLES", 10):
             self.assertRejects(path, "triangle")
+
+    # -- hostile or damaged packages (PATCH-01) -----------------------------------
+    def _patch_central(self, path, name, *, method=None, crc=None, file_size=None) -> None:
+        """Rewrite fields of one zip central-directory entry (headers can lie)."""
+        data = bytearray(Path(path).read_bytes())
+        position = 0
+        while True:
+            position = data.find(b"PK\x01\x02", position)
+            self.assertGreaterEqual(position, 0, f"central entry {name} not found")
+            name_length = struct.unpack_from("<H", data, position + 28)[0]
+            if bytes(data[position + 46 : position + 46 + name_length]).decode() == name:
+                break
+            position += 4
+        if method is not None:
+            struct.pack_into("<H", data, position + 10, method)
+        if crc is not None:
+            struct.pack_into("<I", data, position + 16, crc)
+        if file_size is not None:
+            struct.pack_into("<I", data, position + 24, file_size)
+        Path(path).write_bytes(bytes(data))
+
+    def test_understated_size_header_cannot_force_a_large_decompression(self) -> None:
+        # ~64 MiB of XML whitespace deflates to tens of KiB; the zip header
+        # claims 1,000 bytes.  The declared-size sum cannot be trusted.
+        path = self._path("bomb")
+        expanded = b"<model>" + b" " * (64 * 1024 * 1024)
+        fixtures.build_3mf(
+            path,
+            objects=[fixtures.mesh_object(1, _box())],
+            build_items=[{"objectid": 1}],
+            extra_files={"3D/3dmodel.model": expanded},
+        )
+        self.assertLess(path.stat().st_size, 1024 * 1024)
+        self._patch_central(path, "3D/3dmodel.model", file_size=1000)
+        tracemalloc.start()
+        try:
+            with mock.patch.object(mesh_formats, "MAX_UNCOMPRESSED_BYTES", 8 * 1024 * 1024):
+                with self.assertRaises(ValueError) as ctx:
+                    self._load(path)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        self.assertIn("corrupt", str(ctx.exception).lower())
+        # Inflating the whole entry would peak at 64 MiB or more; the cut-off is
+        # the declared size (1,000 bytes) plus one.
+        self.assertLess(peak, 2 * 1024 * 1024, f"peak traced memory {peak} bytes")
+
+    def test_honestly_declared_large_part_still_hits_the_budget(self) -> None:
+        # No lie here: the declared size is the real size, so the budget decides.
+        path = self._path("honestbig")
+        fixtures.build_3mf(
+            path,
+            objects=[fixtures.mesh_object(1, _box())],
+            build_items=[{"objectid": 1}],
+            extra_files={"3D/3dmodel.model": b"<model>" + b" " * (4 * 1024 * 1024)},
+        )
+        with mock.patch.object(mesh_formats, "MAX_UNCOMPRESSED_BYTES", 1024 * 1024):
+            self.assertRejects(path, "too large")
+
+    def test_corrupt_deflate_stream_is_a_value_error(self) -> None:
+        path = self._path("corrupt")
+        fixtures.write_bowl_3mf(path)
+        info = zipfile.ZipFile(path).getinfo("3D/3dmodel.model")
+        data = bytearray(path.read_bytes())
+        start = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+        middle = start + info.compress_size // 2
+        for offset in range(middle, middle + 8):
+            data[offset] ^= 0xFF
+        path.write_bytes(bytes(data))
+        self.assertRejects(path, "corrupt", "3D/3dmodel.model")
+
+    def test_wrong_crc_is_a_value_error(self) -> None:
+        path = self._path("badcrc")
+        fixtures.write_bowl_3mf(path)
+        self._patch_central(path, "3D/3dmodel.model", crc=0xDEADBEEF)
+        self.assertRejects(path, "corrupt", "3D/3dmodel.model")
+
+    def test_unsupported_compression_method_is_a_value_error(self) -> None:
+        path = self._path("method99")
+        fixtures.write_bowl_3mf(path)
+        self._patch_central(path, "3D/3dmodel.model", method=99)
+        self.assertRejects(path, "3D/3dmodel.model", "unsupported")
+
+    def test_oversized_vendor_config_is_skipped_not_fatal(self) -> None:
+        path = self._path("bigconfig")
+        fixtures.build_3mf(
+            path,
+            objects=[fixtures.mesh_object(1, self.bowl)],
+            build_items=[{"objectid": 1}],
+            extra_files={"Metadata/model_settings.config": b"<config>" + b" " * 4096},
+        )
+        with mock.patch.object(mesh_formats, "MAX_CONFIG_BYTES", 1024):
+            np.testing.assert_array_equal(self._load(path).vertices, self.bowl.vertices)
 
     # -- Kintsugi assembly ------------------------------------------------------
     def test_kintsugi_assembly_rejected(self) -> None:
