@@ -355,6 +355,29 @@ class WebApiTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400, response.text)
         self.assertIn("hybrid", response.json()["detail"].lower())
 
+    def test_api_fracture_hybrid_rejects_malformed_integer_knobs(
+        self,
+    ) -> None:
+        for value in ("abc", "2.5"):
+            with self.subTest(through_count=value):
+                response = self.client.post(
+                    "/api/fracture",
+                    data={
+                        "preset": "tea_bowl",
+                        "R": "0.5",
+                        "mode": "vein",
+                        "seed": "42",
+                        "generator": "hybrid",
+                        "through_count": value,
+                    },
+                )
+                self.assertEqual(
+                    response.status_code, 400, response.text
+                )
+                self.assertIn(
+                    "through_count", response.json()["detail"].lower()
+                )
+
     def test_api_fracture_hybrid_rejects_ribbon_mode(self) -> None:
         response = self.client.post(
             "/api/fracture",

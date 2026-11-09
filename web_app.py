@@ -178,12 +178,12 @@ def api_fracture(
     seed: int = Form(default=42),
     seam_width: float | None = Form(default=None),
     generator: str = Form(default="growth"),
-    through_count: int | None = Form(default=None),
+    through_count: str | None = Form(default=None),
     through_shape: str | None = Form(default=None),
-    tilt_deg: float | None = Form(default=None),
-    hairline_count: int | None = Form(default=None),
-    hairline_reach: float | None = Form(default=None),
-    roughness: float | None = Form(default=None),
+    tilt_deg: str | None = Form(default=None),
+    hairline_count: str | None = Form(default=None),
+    hairline_reach: str | None = Form(default=None),
+    roughness: str | None = Form(default=None),
 ) -> JSONResponse:
     job_id = uuid.uuid4().hex[:12]
     job_dir = OUTPUT_DIR / job_id

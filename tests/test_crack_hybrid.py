@@ -9,12 +9,36 @@ import hashlib
 import math
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
+import manifold3d as mf
 import numpy as np
 
 import kintsugi
 from tests import fixtures
+
+
+def _write_synthetic_cup(path) -> None:
+    """A 44 mm cup with a 4.4 mm wall, matching cup_unitree's profile."""
+    profile = [
+        (0.0, 0.0),
+        (22.5, 0.0),
+        (22.5, 44.0),
+        (18.1, 44.0),
+        (18.1, 4.4),
+        (0.0, 4.4),
+    ]
+    cup = mf.Manifold.revolve(
+        mf.CrossSection([profile]), circular_segments=96
+    )
+    fixtures.write_stl(fixtures.manifold_to_trimesh(cup), path)
+
+
+_REAL_CUP_UNITREE = Path(
+    "/tmp/claude-1001/-home-node-global-sandbox-projects-wax-robot/"
+    "9bbab440-a7fe-4db6-b307-75b743311db4/scratchpad/demo/cup_unitree.stl"
+)
 
 
 def _paths_digest(paths) -> str:
@@ -304,7 +328,7 @@ class CrackHybridTestCase(unittest.TestCase):
                 int(wrapped["target_path"]), int(generalized["target_path"])
             )
 
-    def test_fragment_guarantee_across_holdout_seeds(self) -> None:
+    def test_fragment_guarantee_across_seeds_42_61(self) -> None:
         for severity in (0.2, 0.6):
             for seed in range(42, 62):
                 _, params = self._hybrid(severity, seed)
@@ -324,6 +348,118 @@ class CrackHybridTestCase(unittest.TestCase):
                     2,
                     f"S={severity} seed={seed}",
                 )
+
+    def test_cup_unitree_r02_seed1_clearance_regression(self) -> None:
+        cup = Path(self._tmp.name) / "synthetic_cup.stl"
+        _write_synthetic_cup(cup)
+        cases = [("synthetic_cup", cup)]
+        if _REAL_CUP_UNITREE.exists():
+            cases.append(("real_cup_unitree", _REAL_CUP_UNITREE))
+        for label, path in cases:
+            with self.subTest(model=label):
+                validation = kintsugi.validate_and_load_mesh(path, S=0.0)
+                params = kintsugi.compute_parameters(
+                    0.8,
+                    validation.mesh,
+                    manifold=validation.manifold,
+                    probe=validation.probe,
+                )
+                paths = kintsugi.generate_crack_paths(
+                    params,
+                    np.random.default_rng(1),
+                    generator="hybrid",
+                )
+                stats = kintsugi.analyze_growth_paths(paths, params)
+                r_clear = (
+                    float(params["W"]) + kintsugi.GROWTH_CLEARANCE_MM
+                )
+                self.assertEqual(stats["crossings"], 0)
+                self.assertEqual(stats["clearance_violations"], 0)
+                self.assertIsNotNone(stats["min_clearance"])
+                self.assertGreaterEqual(
+                    float(stats["min_clearance"]), r_clear - 1e-6
+                )
+                self.assertGreaterEqual(
+                    params["hybrid"]["num_fragments"], 2
+                )
+
+    def test_r08_tier_boundary_produces_fracture(self) -> None:
+        params = self._params(1.0 - 0.8)
+        paths = kintsugi.generate_crack_paths(
+            params, np.random.default_rng(42), generator="hybrid"
+        )
+        hybrid = params["hybrid"]
+        self.assertEqual(hybrid["through_count"], 1)
+        self.assertGreaterEqual(hybrid["num_through_paths"], 1)
+        self.assertGreaterEqual(hybrid["num_fragments"], 2)
+        self.assertGreater(len(paths), 0)
+
+    def test_fractional_integer_knobs_rejected(self) -> None:
+        params = self._params(0.5)
+        for options in (
+            {"through_count": 2.5},
+            {"through_count": "2.5"},
+            {"through_count": "abc"},
+            {"through_count": True},
+            {"hairline_count": 2.5},
+            {"hairline_count": "2.5"},
+            {"hairline_count": True},
+        ):
+            with self.subTest(options=options):
+                with self.assertRaises(ValueError):
+                    kintsugi.generate_crack_paths(
+                        dict(params),
+                        np.random.default_rng(42),
+                        generator="hybrid",
+                        hybrid_options=options,
+                    )
+
+    def test_auto_shape_defaults_to_wedge(self) -> None:
+        with unittest.mock.patch.object(
+            kintsugi,
+            "_shard_loop_path",
+            side_effect=AssertionError("auto must not try loop"),
+        ):
+            for seed in range(10):
+                paths, params = self._hybrid(
+                    0.5,
+                    seed,
+                    {
+                        "through_count": 1,
+                        "through_shape": "auto",
+                        "hairline_count": 0,
+                    },
+                )
+                self.assertEqual(
+                    params["hybrid"]["through_shape"], "wedge"
+                )
+                self.assertEqual(
+                    params["hybrid"]["through_shape_requested"], "auto"
+                )
+                self.assertFalse(
+                    kintsugi._is_closed_periodic_path(
+                        np.asarray(paths[0]), params["period"]
+                    )
+                )
+
+    def test_fail_closed_fragment_guarantee(self) -> None:
+        with unittest.mock.patch.object(
+            kintsugi, "_count_wall_fragments", return_value=1
+        ):
+            with self.assertRaises(ValueError):
+                self._hybrid(0.5, 42)
+
+    def test_fail_closed_combined_audit(self) -> None:
+        bad_stats = {
+            "crossings": 1,
+            "clearance_violations": 0,
+            "min_clearance": 10.0,
+        }
+        with unittest.mock.patch.object(
+            kintsugi, "analyze_growth_paths", return_value=bad_stats
+        ):
+            with self.assertRaises(ValueError):
+                self._hybrid(0.5, 42)
 
     # -- Task 1.4 ----------------------------------------------------------
     def test_stage2_obstacles_and_rim_exclusion(self) -> None:
