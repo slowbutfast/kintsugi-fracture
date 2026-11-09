@@ -109,7 +109,7 @@ def bad_edge_points(stl_path):
     return m.vertices[np.array(bad).ravel()] if bad else np.zeros((0, 3)), m
 
 
-CERAMIC, GOLD = (235, 230, 218), (230, 175, 40)
+CERAMIC, GOLD = (24, 24, 27), (230, 175, 40)
 GREEN, RED = (60, 170, 60), (220, 50, 50)
 cases = [
     ("tea_bowl", 0.0, "ribbon", 1),

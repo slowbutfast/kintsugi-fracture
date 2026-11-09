@@ -36,8 +36,8 @@ colors:
   close-hover: "#e81123"
   
   # 3D Viewport materials
-  viewport-bg: "#1a1f2c"
-  ceramic-body: "#f8f6f0"
+  viewport-bg: "#f0ede0"
+  ceramic-body: "#18181b"
   ceramic-wireframe: "#444b5d"
   gold-seam: "#ffd700"
   gold-sheen: "#fff3a8"
@@ -134,8 +134,8 @@ Rather than cluttering the screen with bloated dialogs, the UI preserves the cri
    - Every control serves an explicit function: choosing a 3D model, tuning the inequality slider $R$, selecting the fracture mode, and triggering the cut.
    - Generous viewport real estate dedicated to inspecting the 3D ceramic and gold geometry.
 3. **Contrast & Material Authenticity**:
-   - Contrast between the tactile cream/silver desktop UI (`#ece9d8`) and the deep navy/slate 3D canvas viewport (`#1a1f2c`).
-   - The 3D model renders with realistic PBR materials: off-white matte porcelain (`#f8f6f0`) and lustrous, specular metallic gold (`#ffd700`) with dynamic light glints.
+   - Subtle contrast between the tactile cream/silver desktop UI (`#ece9d8`) and the gallery off-white 3D canvas viewport well (`#f0ede0`).
+   - The 3D model renders with realistic PBR materials: Kuro-raku matte black stoneware (`#18181b`) and lustrous, specular metallic gold (`#ffd700`) with dynamic light glints.
 
 ## Component Specifications
 

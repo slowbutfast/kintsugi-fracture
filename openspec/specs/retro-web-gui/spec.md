@@ -11,11 +11,11 @@ The web GUI SHALL strictly adhere to the design tokens and visual style defined 
 - **THEN** system renders the `Kintsugi Studio 2001` window frame with royal blue gradient titlebar (`#0058ee` to `#072a8c`), 3-button controls (`_ □ ✕`), menu bar, and Tahoma typography at 11px/12px
 
 ### Requirement: Interactive Three.js 3D viewport
-The web GUI SHALL provide an interactive WebGL 3D canvas with orbit controls and physically-based rendering (PBR) materials to preview the ceramic body and gold seams before slicing.
+The web GUI SHALL provide an interactive WebGL 3D canvas with orbit controls and physically-based rendering (PBR) materials to preview the ceramic body and gold seams before slicing, rendering the vessel against a gallery off-white inset well.
 
 #### Scenario: Real-time 3D inspection
 - **WHEN** a fractured or pristine model is displayed in the viewport
-- **THEN** system renders the ceramic body with matte off-white diffuse roughness (`#f8f6f0`) and the gold seams with metallic specular reflection (`#ffd700`), allowing mouse orbit, pan, and zoom without clipping outside the inset frame
+- **THEN** system renders the ceramic body with Kuro-raku matte black diffuse roughness (`#18181b`) and the gold seams with metallic specular reflection (`#ffd700`) against a gallery off-white viewport canvas (`#f0ede0`), allowing mouse orbit, pan, and zoom without clipping outside the inset frame
 
 ### Requirement: Model preset selection and custom upload
 The web GUI SHALL allow selecting bundled preset 3D models or uploading a custom watertight `.stl` or `.obj` file. Input models must conform to the ceramic vessel envelope ($p_5 \ge 1.6\text{ mm}$ along inward surface normals across the wall range). The `thin_cylinder` model SHALL NOT be offered in user presets.
