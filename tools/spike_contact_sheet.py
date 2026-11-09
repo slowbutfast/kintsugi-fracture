@@ -32,7 +32,7 @@ DEFAULT_SHARD_OUTPUT = "reports/contact_sheet_shard.png"
 DEFAULT_PANEL_PX = 340
 
 BACKGROUND = (30, 34, 44)
-CERAMIC = (235, 230, 218)
+CERAMIC = (24, 24, 27)
 GOLD = (230, 175, 40)
 
 # One title-bar colour per contact-sheet row so rows are distinguishable.

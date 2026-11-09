@@ -284,13 +284,21 @@ class WebApiTestCase(unittest.TestCase):
             ".mobile-tabs",
             "font-size: 16px",
             "order: -1",
+            "--ceramic-body: #18181b",
+            "--viewport-bg: #f0ede0",
         ):
             self.assertIn(token, css, token)
 
         js_response = self.client.get("/viewer.js")
         self.assertEqual(js_response.status_code, 200, js_response.text)
         js = js_response.text
-        for token in ("ResizeObserver", "switchMobileTab", "syncMenuChecks"):
+        for token in (
+            "ResizeObserver",
+            "switchMobileTab",
+            "syncMenuChecks",
+            "0x18181b",
+            "0xf0ede0",
+        ):
             self.assertIn(token, js, token)
 
     def test_job_retention(self) -> None:

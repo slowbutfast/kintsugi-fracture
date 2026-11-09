@@ -69,9 +69,9 @@ let controls;
 let grid;
 
 const ceramicMaterial = new THREE.MeshStandardMaterial({
-  color: 0xf8f6f0,
-  roughness: 0.72,
-  metalness: 0.02,
+  color: 0x18181b,
+  roughness: 0.65,
+  metalness: 0.10,
   envMapIntensity: 0.9,
 });
 
@@ -94,7 +94,7 @@ function initViewer() {
   ui.viewport.appendChild(renderer.domElement);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1a1f2c);
+  scene.background = new THREE.Color(0xf0ede0);
 
   camera = new THREE.PerspectiveCamera(
     38,
@@ -111,7 +111,7 @@ function initViewer() {
   controls.rotateSpeed = 0.8;
   controls.zoomSpeed = 0.9;
 
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x253044, 1.4);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xdcd8cc, 1.4);
   scene.add(hemi);
 
   const key = new THREE.DirectionalLight(0xfff4df, 2.5);
@@ -130,11 +130,11 @@ function initViewer() {
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
 
-  grid = new THREE.GridHelper(260, 26, 0x444b5d, 0x283042);
+  grid = new THREE.GridHelper(260, 26, 0xb8b4a6, 0xd0ccc0);
   grid.rotation.x = Math.PI / 2;
   grid.position.z = -0.05;
   grid.material.transparent = true;
-  grid.material.opacity = 0.45;
+  grid.material.opacity = 0.40;
   scene.add(grid);
 
   scene.add(state.modelGroup);
