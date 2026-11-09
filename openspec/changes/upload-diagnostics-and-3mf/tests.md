@@ -22,6 +22,7 @@ All tests run under the repo's `unittest` runner. 3MF fixtures are built inside 
     - an empty mesh.
   - **Kintsugi assembly:** a package written by `export_kintsugi_3mf` from a real fracture result is rejected as "already a Kintsugi output".
   - **Fallbacks:** a root model found through `_rels/.rels` at a non-default path loads, and a package without `_rels/.rels` falls back to `3D/3dmodel.model`.
+  - **Hostile and damaged packages:** an entry whose header understates its size (64 MiB of XML declared as 1,000 bytes) is rejected as corrupt with a traced peak memory under 2 MiB; an honestly declared part over the budget is rejected as too large; a corrupt deflate stream, a wrong CRC and an unsupported compression method each raise `ValueError` naming the part; an oversized vendor config is skipped, not fatal. Over the API, a corrupted 3MF answers `valid: false`, not HTTP 500.
   - **No-repair contract:** the loaded mesh is built with `process=False`, so its vertex count equals the sum of the source objects' vertices (duplicates kept).
 - `./.venv/bin/python -m unittest tests.test_web_api -v`:
   - **Request id:** every response carries a 12-hex `X-Kintsugi-Request-Id`, and `request_id` in error bodies equals the header.
@@ -51,7 +52,7 @@ All tests run under the repo's `unittest` runner. 3MF fixtures are built inside 
   - **THEN** record which one reaches the app (it has an `X-Kintsugi-Request-Id`) in `verification.md`
 - **Slicer 3MF exports:**
   - **WHEN** a single bowl is exported as 3MF from PrusaSlicer, Bambu Studio and OrcaSlicer (whichever are available) and dropped into the local app
-  - **THEN** each previews correctly, validates with the same result as the STL export of the same model, and the zip structure (core vs `p:path`, vendor `Metadata/*.config`) is recorded in `verification.md`
+  - **THEN** each previews correctly, validates with the same result as the STL export of the same model, and the zip structure (core vs `p:path`, vendor `Metadata/*.config`, and whether the archive uses ZIP64 markers, which the server accepts but the preview rejects) is recorded in `verification.md`
 - **Browser inflate and preview (not testable without a browser):**
   - **WHEN** a deflate-compressed 3MF (e.g. `kintsugi`'s own fixture, or any slicer export) is dropped into the app in a real browser
   - **THEN** the preview shows the model, the console has no `[kintsugi] 3MF preview failed` warning, and the geometry matches the STL export of the same model

@@ -32,3 +32,10 @@
 - [ ] 5.2 Run the manual checks in tests.md on a local server and on a Vercel preview: over-limit refusal, platform 413 diagnosis, exact platform boundary, slicer 3MF exports and their zip structure, modifier rejection, own-output rejection, and upload-zone copy (PARTIAL: local-server HTTP checks done and logged in verification.md; the Vercel preview, browser, and slicer-export checks are still open)
 - [x] 5.3 Populate `verification.md` with the Requirement Adherence Matrix, resolved assumptions (platform byte boundary, slicer 3MF structures, modifier markers), and verbatim execution logs
 - [ ] 5.4 Close PR #10 with a link to this change's implementation PR (left for the owner: closing PR #10 is their call once this PR is confirmed)
+
+## P01. PATCH-01: bound zip reads, report damaged packages as invalid models
+
+- [x] P01.1 Write failing tests: understated size header with a traced-memory bound, honestly oversized part, corrupt deflate stream, wrong CRC, unsupported compression method, oversized vendor config stays non-fatal, and a corrupted 3MF over `/api/validate` is `valid: false` (confirmed red for the right reason)
+- [x] P01.2 Add `_Package._read_bounded` / `read` / `read_optional` in `mesh_formats.py` (bounded `archive.open(...).read(cap + 1)`, zip-layer errors converted to `ValueError`) and route the vendor-config reads through it
+- [x] P01.3 Update `specs/mesh-fracture-engine/spec.md`, `architecture.md` and `tests.md`; add the ZIP64 note to the slicer-export manual check; write `patch.md`
+- [x] P01.4 Re-run the full suite and the measured before/after memory comparison; record both in `verification.md`

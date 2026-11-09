@@ -6,9 +6,9 @@
 - **Date verified**: 2026-11-09
 - **Environment**: Linux 5.15.0-1081-oracle aarch64 container, Python 3.11, Node v22.23.2, shared project virtualenv (`.venv`); trimesh 5.2.0, numpy, manifold3d, fastapi.
 - **Base**: `origin/main` at `aeeb872` (PR #9 merged), plus PR #10's commit `e055b34` cherry-picked as task 1.1.
-- **Full regression suite**: 146 tests, OK, 0 skipped (`Ran 146 tests in 260.233s`).
-- **Re-run after the last edits** (logging sanitiser, viewer zip handling, fixture compression option, which landed after the full run started): `tests.test_mesh_formats tests.test_viewer_js tests.test_web_api`, 76 tests, OK (`Ran 76 tests in 15.298s`).
-- **Generator regression**: `tests.test_crack_hybrid.test_growth_and_shard_baseline_digests_unchanged` passes in the full run, so growth and shard output is unchanged.
+- **Full regression suite (final, after PATCH-01)**: 154 tests, OK, 0 skipped (`Ran 154 tests in 256.319s`). An earlier full run before the patch gave 146 tests, OK (`Ran 146 tests in 260.233s`); the 8 added tests are the PATCH-01 tests below.
+- **Generator regression**: `tests.test_crack_hybrid.test_growth_and_shard_baseline_digests_unchanged` passes in both full runs, so growth and shard output is unchanged.
+- **PATCH-01 (PR #11 review)**: two Important findings fixed, see the section below. Nits deferred, listed in `patch.md`.
 - **Dependencies**: none added. The reader needs neither `networkx` nor `lxml` (checked below).
 
 ### How the tests were written
@@ -49,6 +49,9 @@ Tests were written first and run red. `tests.test_mesh_formats` failed 30/30 (mo
 | Non-model object type rejected | `test_non_model_object_type_rejected`, `test_unreachable_non_model_object_is_ignored` | **PASS** |
 | Kintsugi assembly rejected | `test_kintsugi_assembly_rejected` (a real fracture's `export_kintsugi_3mf` output); CLI check | **PASS** |
 | Malformed package rejected (not a ZIP, no root model, missing object, unknown unit, cycle, depth, DOCTYPE, empty mesh, bad triangle index) | `test_not_a_zip_rejected`, `test_missing_root_model_rejected`, `test_missing_object_id_rejected`, `test_unknown_unit_rejected`, `test_component_cycle_rejected`, `test_component_nesting_depth_limit`, `test_doctype_rejected_before_parsing`, `test_empty_mesh_rejected`, `test_out_of_range_triangle_index_rejected` | **PASS** |
+| Entry whose header understates its size (PATCH-01) | `test_understated_size_header_cannot_force_a_large_decompression` (64 MiB of XML declared as 1,000 bytes; traced peak under 2 MiB); measured separately, see below | **PASS** |
+| Damaged or unsupported entry is an invalid model, not a 500 (PATCH-01) | `test_corrupt_deflate_stream_is_a_value_error`, `test_wrong_crc_is_a_value_error`, `test_unsupported_compression_method_is_a_value_error`, `test_corrupt_3mf_is_reported_as_invalid_not_a_server_error` | **PASS** |
+| Honest oversized package rejected; oversized vendor config skipped (PATCH-01) | `test_honestly_declared_large_part_still_hits_the_budget`, `test_oversized_vendor_config_is_skipped_not_fatal` | **PASS** |
 | Reader discovery and fallbacks (`.rels` target, default part) | `test_root_model_found_through_relationship`, `test_package_without_rels_falls_back_to_default_part` | **PASS** |
 | Size caps; no-repair contract; stdlib only | `test_size_caps_are_enforced`, `test_object_reused_by_two_components_keeps_both_copies`, `test_reader_uses_only_the_standard_library_for_3mf` | **PASS** |
 | Slicer modifier / negative volumes rejected (architecture risk mitigation, beyond the delta spec) | `test_vendor_config_modifier_volumes_rejected`, `test_vendor_config_with_only_model_parts_is_accepted`. The config formats used are **from memory, not from real slicer exports** | **PASS (synthetic only)** |
@@ -66,6 +69,32 @@ Tests were written first and run red. `tests.test_mesh_formats` failed 30/30 (mo
 | The real server behaves over HTTP | Started `web_app.py` with `KINTSUGI_MAX_UPLOAD_BYTES=300000` and called it | health, 3MF validate (200, valid), oversize (413 JSON), bad suffix (400), 404 JSON, 422 without echoing bytes, 3MF fracture (200, 7 cracks); request ids matched the server log lines |
 | The CLI accepts 3MF | Ran `kintsugi.py bowl.3mf -R 0.5 --3mf`, then fed the assembly back in | Exit 0 with three outputs; re-feeding the assembly exits 1 with the "already a Kintsugi output" message |
 
+## PATCH-01: review findings on PR #11
+
+| Finding | Evidence |
+| :--- | :--- |
+| Important: size cap trusted zip headers; a small file forced a huge decompression | Reproduced before fixing: the committed reader added **+400 MiB** peak RSS on a 200 KB file declaring 1,000 bytes (really 200 MiB), then raised a raw `zipfile.BadZipFile`. After the fix the same file adds **+0 MiB** and raises `ValueError`. Each reader was run in a fresh process with the file built beforehand (a first attempt that built the payload in the same process was confounded and discarded) |
+| Important: corrupt package gave HTTP 500 | Reproduced before fixing: `zipfile.BadZipFile: Bad CRC-32` and `zlib.error: invalid distance too far back` escaped from `load_3mf`. After the fix all damaged-entry cases are `ValueError`, and `/api/validate` answers `valid: false` |
+| Process | 5 of the 6 new tests were red before the fix, for the right reasons; the oversized-vendor-config test passed already and guards the refactor |
+| A correction to my first fix | Bounding reads by the 512 MiB budget alone would not have helped, since 200 MiB is under it. The bound is the declared size. `zipfile` already truncates at it, so an extra "declared size" error branch I wrote could never run; it was removed |
+
+```text
+$ python -I bomb_measure.py build bomb.3mf <repo>
+built bomb.3mf: 200 KB on disk, header claims 1000 bytes, real size 200 MiB
+--- committed (old) reader
+peak RSS: 95 MiB before load -> 495 MiB after (+400 MiB) | zipfile.BadZipFile  <- NOT a ValueError
+--- fixed reader
+peak RSS: 95 MiB before load -> 95 MiB after (+0 MiB) | ValueError: 3MF part '3D/3dmodel.model' is corrupt or uses an unsupporte
+```
+
+```text
+$ ./.venv/bin/python -m unittest discover -s tests -v
+Ran 154 tests in 256.319s
+OK
+```
+
+Deferred nits (see `patch.md`): ZIP64 in the preview, case-insensitive part names, whole-part XML parsing, and the modifier markers (still from memory).
+
 ## Not verified (needs the owner or a real environment)
 
 These are open assumptions from research.md. Nothing here has been confirmed.
@@ -74,7 +103,7 @@ These are open assumptions from research.md. Nothing here has been confirmed.
 | :--- | :--- |
 | Exact Vercel body limit (4,400,000 vs 4,600,000 bytes) | Needs two uploads to a preview deployment. The 4 MiB hosted default is chosen to be safe under either reading |
 | `VERCEL=1` default end to end | Only the resolver function is tested. The deployed value and upload-zone subtitle were not seen |
-| What PrusaSlicer, Bambu Studio and OrcaSlicer actually write (core vs `p:path`, `Metadata/*.config` markers for modifier volumes) | No slicer exports were available. The reader follows the 3MF spec and the architecture's assumptions; the modifier/negative-volume check uses markers recalled from memory and is only tested with synthetic configs. Real exports might trip it or slip past it |
+| What PrusaSlicer, Bambu Studio and OrcaSlicer actually write (core vs `p:path`, `Metadata/*.config` markers for modifier volumes, and whether the archive uses ZIP64 markers, which the server accepts but the preview refuses) | No slicer exports were available. The reader follows the 3MF spec and the architecture's assumptions; the modifier/negative-volume check uses markers recalled from memory and is only tested with synthetic configs. Real exports might trip it or slip past it |
 | Browser behaviour: `fflate.inflateSync` on real bytes, the 3MF preview, the `[kintsugi] ✓` console line, status-bar copy and `title` hover, refusal with no request sent | No browser was available. The viewer reader was tested under Node with `zlib` in place of fflate |
 | Closing PR #10 (task 5.4) | Done after the owner confirms this PR |
 

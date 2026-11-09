@@ -16,8 +16,12 @@ The system SHALL load a `.3mf` input into one flattened millimetre mesh before t
 
 The existing input envelope (closed solid, millimetre extents within [20, 300], vessel, wall thickness) SHALL then apply unchanged.
 
+The reader SHALL treat the package as untrusted. It SHALL read each entry through a bounded read that stops at the entry's declared size (an honest entry never decompresses to more) and at the remaining decompressed-size budget of 512 MiB for the package, and SHALL NOT decompress an entry in full before checking its size. Any error the zip layer raises for a damaged or unsupported entry SHALL surface as a `ValueError`, never as another exception type, so that callers report an invalid model and not a server error.
+
 The reader SHALL raise a `ValueError` naming the problem when:
 - the file is not a ZIP;
+- an entry is damaged: it fails its CRC, its compressed stream is corrupt, its header understates its real size, or it uses an unsupported compression method;
+- the decompressed package exceeds the 512 MiB budget;
 - no root model can be found;
 - the build has zero or more than one item;
 - a referenced object, part or `p:path` target is missing or points outside the package;
@@ -54,3 +58,15 @@ The reader SHALL raise a `ValueError` naming the problem when:
 #### Scenario: Malformed package rejected
 - **WHEN** the input is not a ZIP, has no root model, references a missing object, uses an unknown unit, or contains a component cycle
 - **THEN** a `ValueError` names the specific problem, and no partial mesh is returned
+
+#### Scenario: Entry whose header understates its size
+- **WHEN** a package of about 200 KB declares a 1,000-byte model part in its zip header but the part's compressed stream expands to 200 MiB
+- **THEN** a `ValueError` states that the part is corrupt, and the reader decompresses only about the declared size (peak memory does not grow by the real size)
+
+#### Scenario: Damaged or unsupported entry rejected as an invalid model
+- **WHEN** a model part has a corrupt deflate stream, a wrong CRC, or an unsupported compression method
+- **THEN** a `ValueError` names the part and says it is corrupt or unsupported, and `POST /api/validate` answers `valid: false` with that detail instead of an HTTP 500
+
+#### Scenario: Honest oversized package rejected
+- **WHEN** a package's parts really decompress to more than the 512 MiB budget
+- **THEN** a `ValueError` states that the package is too large when uncompressed
