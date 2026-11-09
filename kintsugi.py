@@ -3286,6 +3286,9 @@ def _resolve_hybrid_config(
             options.get("through_count", auto_through)
         ),
         "through_shape": options.get("through_shape", "auto"),
+        "through_shape_requested": options.get(
+            "through_shape", "auto"
+        ),
         "tilt_deg": float(options.get("tilt_deg", auto_tilt)),
         "hairline_count": int(
             options.get("hairline_count", _auto_hairline_count(S))
