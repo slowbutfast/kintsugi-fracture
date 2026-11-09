@@ -28,6 +28,7 @@ class WebApiTestCase(unittest.TestCase):
         cls.bowl = Path(cls._tmp.name) / "bowl.stl"
         cls.open_bowl = Path(cls._tmp.name) / "open_bowl.stl"
         cls.thin = Path(cls._tmp.name) / "thin_cylinder.stl"
+        cls.solid = Path(cls._tmp.name) / "solid_cylinder.stl"
         fixtures.write_bowl(cls.bowl)
         fixtures.write_open_bowl(cls.open_bowl)
         fixtures.write_stl(
@@ -36,9 +37,11 @@ class WebApiTestCase(unittest.TestCase):
             ),
             cls.thin,
         )
+        fixtures.write_solid_cylinder(cls.solid)
         cls.bowl_bytes = cls.bowl.read_bytes()
         cls.open_bowl_bytes = cls.open_bowl.read_bytes()
         cls.thin_bytes = cls.thin.read_bytes()
+        cls.solid_bytes = cls.solid.read_bytes()
         cls.client = TestClient(app)
 
     @classmethod
@@ -300,6 +303,127 @@ class WebApiTestCase(unittest.TestCase):
             "0xf0ede0",
         ):
             self.assertIn(token, js, token)
+
+    def test_api_fracture_hybrid_success_and_knob_telemetry(self) -> None:
+        response = self.client.post(
+            "/api/fracture",
+            data={
+                "preset": "tea_bowl",
+                "R": "0.5",
+                "mode": "vein",
+                "seed": "42",
+                "generator": "hybrid",
+                "through_count": "1",
+                "through_shape": "wedge",
+                "tilt_deg": "25",
+                "hairline_count": "3",
+                "hairline_reach": "0.5",
+                "roughness": "1.2",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["parameters"]["generator"], "hybrid")
+        self.assertGreater(body["num_cracks"], 0)
+        self.assertGreaterEqual(body["num_fragments"], 2)
+        hybrid = body["parameters"]["hybrid"]
+        self.assertEqual(hybrid["through_count"], 1)
+        self.assertEqual(hybrid["through_shape"], "wedge")
+        self.assertAlmostEqual(hybrid["tilt_deg"], 25.0)
+        self.assertEqual(hybrid["hairline_count"], 3)
+        self.assertAlmostEqual(hybrid["hairline_reach"], 0.5)
+        self.assertAlmostEqual(hybrid["roughness"], 1.2)
+        self.assertGreaterEqual(hybrid["num_through_fragments"], 2)
+        self.assertGreaterEqual(hybrid["num_fragments"], 2)
+        self.assertIsNotNone(body["downloads"]["ceramic_stl"])
+        self.assertIsNotNone(body["downloads"]["gold_stl"])
+
+    def test_api_fracture_hybrid_rejects_knobs_for_other_generator(
+        self,
+    ) -> None:
+        response = self.client.post(
+            "/api/fracture",
+            data={
+                "preset": "tea_bowl",
+                "R": "0.5",
+                "mode": "vein",
+                "seed": "42",
+                "generator": "growth",
+                "through_count": "2",
+            },
+        )
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("hybrid", response.json()["detail"].lower())
+
+    def test_api_fracture_hybrid_rejects_ribbon_mode(self) -> None:
+        response = self.client.post(
+            "/api/fracture",
+            data={
+                "preset": "tea_bowl",
+                "R": "0.5",
+                "mode": "ribbon",
+                "seed": "42",
+                "generator": "hybrid",
+            },
+        )
+        self.assertEqual(response.status_code, 400, response.text)
+        detail = response.json()["detail"].lower()
+        self.assertIn("hybrid", detail)
+        self.assertIn("vein", detail)
+
+    def test_api_validate_rejects_solid_body_without_wall(self) -> None:
+        response = self.client.post(
+            "/api/validate",
+            files={
+                "file": (
+                    "solid_cylinder.stl",
+                    self.solid_bytes,
+                    "application/octet-stream",
+                )
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertFalse(body["valid"])
+        self.assertIn("wall", body["detail"].lower())
+
+    def test_web_ui_exposes_hybrid_generator_and_settings(self) -> None:
+        html_response = self.client.get("/")
+        self.assertEqual(html_response.status_code, 200)
+        html = html_response.text
+        self.assertIn('value="hybrid"', html)
+        self.assertIn('data-generator="hybrid"', html)
+        self.assertIn('id="hybrid-settings"', html)
+        for control in (
+            "hybrid-through-count",
+            "hybrid-through-shape",
+            "hybrid-tilt-deg",
+            "hybrid-hairline-count",
+            "hybrid-hairline-reach",
+            "hybrid-roughness",
+            "hybrid-resolved-note",
+        ):
+            self.assertIn(f'id="{control}"', html, control)
+        self.assertGreaterEqual(html.count('value="auto"'), 6)
+
+        js_response = self.client.get("/viewer.js")
+        self.assertEqual(js_response.status_code, 200)
+        js = js_response.text
+        for token in (
+            "hybridSettings",
+            "syncHybridSettings",
+            "renderHybridResolved",
+            "hybrid-through-count",
+            "hybrid.auto_through_count",
+            "num_fragments",
+        ):
+            self.assertIn(token, js, token)
+
+        css_response = self.client.get("/xp.css")
+        self.assertEqual(css_response.status_code, 200)
+        css = css_response.text
+        self.assertIn(".hybrid-fieldset", css)
+        self.assertIn(".hybrid-grid", css)
 
     def test_job_retention(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
