@@ -4,16 +4,20 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import shutil
 import tempfile
 import time
+import traceback
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import kintsugi
 from sample_models import PRESETS, ensure_presets, preset_path
@@ -38,6 +42,139 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 ensure_presets(PRESET_DIR)
 
 app = FastAPI(title="Kintsugi Studio 2001", version="1.0")
+
+# Diagnostics: one log line per API request, a request id echoed in the
+# ``X-Kintsugi-Request-Id`` header, and JSON bodies for every error the app
+# itself produces.  Platform errors (proxy limits, timeouts) never reach this
+# code; the browser console logs those from the response headers instead.
+logger = logging.getLogger("kintsugi.web")
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    )
+    logger.addHandler(_handler)
+logger.setLevel(os.getenv("KINTSUGI_LOG_LEVEL", "INFO").upper())
+logger.propagate = False
+
+
+def _request_id(request: Request) -> str:
+    return getattr(request.state, "request_id", "-")
+
+
+def _error_payload(
+    request: Request, status: int, detail, error_type: str
+) -> JSONResponse:
+    return JSONResponse(
+        {
+            "detail": detail,
+            "error_type": error_type,
+            "status": status,
+            "path": request.url.path,
+            "request_id": _request_id(request),
+        },
+        status_code=status,
+        headers={"X-Kintsugi-Request-Id": _request_id(request)},
+    )
+
+
+@app.middleware("http")
+async def _log_requests(request: Request, call_next):
+    request_id = uuid.uuid4().hex[:12]
+    request.state.request_id = request_id
+    started = time.perf_counter()
+    is_api = request.url.path.startswith("/api/")
+    if is_api:
+        logger.info(
+            "[%s] -> %s %s content-type=%s content-length=%s",
+            request_id,
+            request.method,
+            request.url.path,
+            request.headers.get("content-type", "-"),
+            request.headers.get("content-length", "-"),
+        )
+    try:
+        response = await call_next(request)
+    except Exception as exc:  # pragma: no cover - last-resort boundary
+        logger.error(
+            "[%s] unhandled %s on %s %s: %s\n%s",
+            request_id,
+            type(exc).__name__,
+            request.method,
+            request.url.path,
+            exc,
+            traceback.format_exc(),
+        )
+        return _error_payload(
+            request, 500, f"{type(exc).__name__}: {exc}", type(exc).__name__
+        )
+    response.headers["X-Kintsugi-Request-Id"] = request_id
+    if is_api:
+        logger.info(
+            "[%s] <- %s %s status=%s %.0f ms",
+            request_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+            (time.perf_counter() - started) * 1000.0,
+        )
+    return response
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_exception_handler(request: Request, exc: StarletteHTTPException):
+    logger.warning(
+        "[%s] HTTP %s on %s: %s",
+        _request_id(request),
+        exc.status_code,
+        request.url.path,
+        exc.detail,
+    )
+    return _error_payload(request, exc.status_code, exc.detail, "HTTPException")
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exception_handler(
+    request: Request, exc: RequestValidationError
+):
+    logger.warning(
+        "[%s] request validation failed on %s: %s",
+        _request_id(request),
+        request.url.path,
+        exc.errors(),
+    )
+    return _error_payload(
+        request, 422, jsonable_errors(exc), "RequestValidationError"
+    )
+
+
+def jsonable_errors(exc: RequestValidationError) -> list:
+    """Strip non-serialisable context (e.g. raw upload bytes) from errors."""
+    cleaned = []
+    for error in exc.errors():
+        cleaned.append(
+            {
+                key: (value if key in ("loc", "msg", "type") else str(value)[:200])
+                for key, value in error.items()
+                if key != "input" or not isinstance(value, (bytes, bytearray))
+            }
+        )
+    return cleaned
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        "[%s] unhandled %s on %s: %s\n%s",
+        _request_id(request),
+        type(exc).__name__,
+        request.url.path,
+        exc,
+        "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+    )
+    return _error_payload(
+        request, 500, f"{type(exc).__name__}: {exc}", type(exc).__name__
+    )
 
 app.mount("/outputs", StaticFiles(directory=str(OUTPUT_DIR)), name="outputs")
 app.mount("/presets", StaticFiles(directory=str(PRESET_DIR)), name="presets")
@@ -79,7 +216,8 @@ def _prune_jobs() -> None:
         shutil.rmtree(jobs.pop(0), ignore_errors=True)
 
 
-def _save_upload(source, destination: Path) -> None:
+def _save_upload(source, destination: Path) -> int:
+    """Stream an upload to disk and return the number of bytes written."""
     total = 0
     with destination.open("wb") as handle:
         while True:
@@ -98,6 +236,7 @@ def _save_upload(source, destination: Path) -> None:
                     ),
                 )
             handle.write(chunk)
+    return total
 
 
 def _resolve_input(
@@ -128,7 +267,8 @@ def _resolve_input(
 
 
 @app.post("/api/validate")
-def api_validate(file: UploadFile = File(...)) -> JSONResponse:
+def api_validate(request: Request, file: UploadFile = File(...)) -> JSONResponse:
+    request_id = _request_id(request)
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded")
     suffix = Path(file.filename).suffix.lower()
@@ -140,15 +280,25 @@ def api_validate(file: UploadFile = File(...)) -> JSONResponse:
 
     with tempfile.TemporaryDirectory(prefix="kintsugi-validate-") as tmp:
         path = Path(tmp) / f"input{suffix}"
-        _save_upload(file.file, path)
+        saved = _save_upload(file.file, path)
+        logger.info(
+            "[%s] validate upload name=%r content_type=%s bytes=%d",
+            request_id,
+            file.filename,
+            file.content_type,
+            saved,
+        )
         try:
             validation = kintsugi.validate_and_load_mesh(path, S=0.0)
             mesh, manifold = validation
         except ValueError as exc:
+            logger.info("[%s] validate rejected: %s", request_id, exc)
             return JSONResponse(
                 {
                     "valid": False,
                     "detail": str(exc),
+                    "error_type": type(exc).__name__,
+                    "bytes_received": saved,
                     "extents": None,
                     "volume": None,
                     "vertices": None,
@@ -171,6 +321,7 @@ def api_validate(file: UploadFile = File(...)) -> JSONResponse:
 
 @app.post("/api/fracture")
 def api_fracture(
+    request: Request,
     file: UploadFile | None = File(default=None),
     preset: str | None = Form(default=None),
     R: float = Form(default=0.5),
@@ -205,6 +356,20 @@ def api_fracture(
 
     try:
         input_path = _resolve_input(job_dir, file, preset)
+        logger.info(
+            "[%s] fracture input=%s upload=%r bytes=%d R=%s mode=%s "
+            "generator=%s seed=%s seam_width=%s hybrid=%s",
+            _request_id(request),
+            "upload" if file is not None and file.filename else f"preset:{preset}",
+            file.filename if file is not None else None,
+            input_path.stat().st_size,
+            R,
+            mode,
+            generator,
+            seed,
+            seam_width,
+            hybrid_options,
+        )
         result = kintsugi.generate_kintsugi_mesh(
             input_path,
             job_dir,
@@ -219,12 +384,20 @@ def api_fracture(
     except ValueError as exc:
         # Remove the half-created job so failed runs do not leak assets.
         shutil.rmtree(job_dir, ignore_errors=True)
+        logger.info("[%s] fracture rejected: %s", _request_id(request), exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except HTTPException:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise
     except Exception as exc:  # pragma: no cover - defensive boundary
         shutil.rmtree(job_dir, ignore_errors=True)
+        logger.error(
+            "[%s] fracture crashed with %s: %s\n%s",
+            _request_id(request),
+            type(exc).__name__,
+            exc,
+            traceback.format_exc(),
+        )
         raise HTTPException(status_code=500, detail=f"Fracture failed: {exc}") from exc
 
     downloads = {
