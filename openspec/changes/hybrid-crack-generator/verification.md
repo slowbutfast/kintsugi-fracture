@@ -7,8 +7,8 @@
 - **Environment**: Linux 5.15.0-1081-oracle aarch64 (container), Python 3.11.2, `unittest` via `./.venv/bin/python -m unittest discover -s tests -v`
 - **Interpreter**: the worktree `.venv` symlink points at the shared project virtualenv (`/home/node/global-sandbox/projects/wax-robot/.venv`).
 - **Packages**: numpy 2.4.6, scipy 1.17.1, trimesh 5.2.0, manifold3d 3.5.4, fastapi 0.162.0, httpx 0.28.1, rtree 1.4.1
-- **Commit under test**: `9e1911c5` (`fix(crack): enforce hybrid audit and speed up collision checks`) on `feat/hybrid-crack-generator-clean`, rebased onto `origin/main`.
-- **Test totals**: 89 tests passed, 0 failed (`Ran 89 tests in 248.983s`, final full-suite log below).
+- **Commit under test**: `75347288` (final code commit; PATCH-01 fixes in `9e1911c5` plus the requested-shape telemetry follow-up) on `feat/hybrid-crack-generator-clean`, rebased onto `origin/main`.
+- **Test totals**: 89 tests passed, 0 failed (`Ran 89 tests in 249.115s`, final full-suite log below).
 - **PATCH-01 status**: RESOLVED. Reproducing `cup_unitree` (`R=0.2, seed=1`) clearance regression now reports zero violations; fail-closed audit/fragment guards, `auto -> wedge`, knob validation, and collision speedups are covered by new tests.
 - **Baseline preservation**: 72/72 growth+shard digest comparisons matched the pre-change SHA-256 table embedded in `tests/test_crack_hybrid.py`.
 - **Data preservation**: hybrid runs produce one ceramic body plus complementary gold; both STLs are watertight and positive-volume on `tea_bowl` and `vase`. No sample or path pruning was introduced (Stage 3 audits the direct union).
@@ -104,7 +104,7 @@ Final summary (verbatim from the final full-suite run):
 
 ```text
 ----------------------------------------------------------------------
-Ran 89 tests in 248.983s
+Ran 89 tests in 249.115s
 
 OK
 tapered lip: p5=2.404 mm, t_min=1.114 mm, d_min=0.557 mm, backing_min=0.557 mm, backing_min(t>=1.6)=0.839 mm
