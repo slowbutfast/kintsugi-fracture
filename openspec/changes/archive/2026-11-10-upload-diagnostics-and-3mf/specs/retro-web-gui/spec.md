@@ -26,7 +26,7 @@ The deployment SHALL have one upload limit in bytes:
 - **WHEN** user selects a file larger than the `max_upload_bytes` reported by `GET /api/health`
 - **THEN** the viewer sends no request, keeps the fracture button disabled, and the status bar names the file size and the limit in megabytes and suggests running locally or exporting a smaller file (e.g. binary STL or 3MF)
 
-#### Scenario: Upload size cap enforced by the server
+#### Scenario: Upload size cap
 - **WHEN** an upload that reaches the app exceeds the upload limit
 - **THEN** the API rejects it with HTTP 413 and an app error envelope whose `detail` states the limit, and stores no file
 

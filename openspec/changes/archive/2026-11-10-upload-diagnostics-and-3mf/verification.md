@@ -2,7 +2,7 @@
 
 ## Executive Summary & Environment
 
-- **Status**: automated checks PASS; manual checks that need a browser, a Vercel preview or slicer exports are **NOT done** (listed under "Not verified"). The owner's sign-off covers those.
+- **Status**: automated checks PASS; the owner signed off visually on the Vercel preview (2026-11-10); slicer exports and the exact platform byte boundary were not run (see "Owner sign-off").
 - **Date verified**: 2026-11-09
 - **Environment**: Linux 5.15.0-1081-oracle aarch64 container, Python 3.11, Node v22.23.2, shared project virtualenv (`.venv`); trimesh 5.2.0, numpy, manifold3d, fastapi.
 - **Base**: `origin/main` at `aeeb872` (PR #9 merged), plus PR #10's commit `e055b34` cherry-picked as task 1.1.
@@ -26,7 +26,7 @@ Tests were written first and run red. `tests.test_mesh_formats` failed 30/30 (mo
 | Scenario: Custom file upload (`.3mf`) | `test_validate_accepts_a_3mf_vessel`; live HTTP check (p5 3.005 mm) | **PASS** |
 | Scenario: Custom 3MF upload preview | `tests.test_viewer_js` preview parity (Node, same fixtures as the server reader, including a `p:path` part with a colliding id and nested transforms) | **PASS (Node only)**, browser check pending |
 | Scenario: Upload over the limit refused in the browser | `tests.test_viewer_js` upload pre-flight (`checkUploadAllowed`: within, exactly at, one byte over, upper-case suffix, missing/malformed health); `handleCustomFile` returns before any `fetch` | **PASS (logic)**, no-request behaviour pending in a browser |
-| Scenario: Upload size cap enforced by the server | `test_oversized_upload_returns_413_envelope`, `test_reported_and_enforced_limit_follow_the_constant`; live check (413 JSON, `Upload exceeds the 293.0 KB limit for this deployment`) | **PASS** |
+| Scenario: Upload size cap | `test_oversized_upload_returns_413_envelope`, `test_reported_and_enforced_limit_follow_the_constant`; live check (413 JSON, `Upload exceeds the 293.0 KB limit for this deployment`) | **PASS** |
 | Scenario: Unsupported suffix | `test_unsupported_suffix_lists_the_accepted_formats` (validate and fracture); `tests.test_viewer_js` (`model.ply: unsupported format. Use .stl, .obj or .3mf.`) | **PASS** |
 | Scenario: Preset model selection, Job retention (unchanged) | existing `test_api_presets`, `test_job_retention` | **PASS** |
 | Request diagnostics: request id on every response, unique per request | `test_every_response_carries_a_request_id`, `test_request_ids_are_unique_per_request` | **PASS** |
@@ -106,6 +106,26 @@ These are open assumptions from research.md. Nothing here has been confirmed.
 | What PrusaSlicer, Bambu Studio and OrcaSlicer actually write (core vs `p:path`, `Metadata/*.config` markers for modifier volumes, and whether the archive uses ZIP64 markers, which the server accepts but the preview refuses) | No slicer exports were available. The reader follows the 3MF spec and the architecture's assumptions; the modifier/negative-volume check uses markers recalled from memory and is only tested with synthetic configs. Real exports might trip it or slip past it |
 | Browser behaviour: `fflate.inflateSync` on real bytes, the 3MF preview, the `[kintsugi] ✓` console line, status-bar copy and `title` hover, refusal with no request sent | No browser was available. The viewer reader was tested under Node with `zlib` in place of fflate |
 | Closing PR #10 (task 5.4) | Done after the owner confirms this PR |
+
+## Owner sign-off (2026-11-10)
+
+- **Visual check:** the project owner verified the PR #11 Vercel preview visually and reported that everything looks good.
+- **Hosted limit:** the preview's `GET /api/health` returned `max_upload_bytes: 4194304` and `accepted_formats: [".stl", ".obj", ".3mf"]` (reviewer fetch, 2026-11-09).
+- **Cross-writer interop (reviewer):** a trimesh-written 3MF of `tea_bowl` and of the urdformer bowl loaded identically in `mesh_formats.load_3mf` and in `static/threemf.js` with the real fflate 0.6.9 `inflateSync`. Triangle counts and extents matched the source.
+- **Still not run:**
+  - real PrusaSlicer, Bambu Studio or OrcaSlicer exports (ZIP64, modifier-volume markers);
+  - the exact Vercel byte boundary (4.4 MB vs 4.6 MB).
+
+  These remain unverified assumptions, not passes.
+
+### Known follow-up (accepted at merge)
+
+- **Honest high-ratio packages can still use about 2 GB of memory.** A 0.47 MiB 3MF with an honestly declared 480 MiB model part, under the 512 MiB budget, peaks at +1,936 MiB RSS in `load_3mf` on head `7e00c52` (reviewer measurement, fresh process). The understated-header case is fixed (+0 MiB).
+- **Proposed fix:**
+  - scale `MAX_UNCOMPRESSED_BYTES` with the upload size, e.g. `min(512 MiB, max(32 MiB, 64 × compressed size))`, or a 64 MiB hosted default;
+  - replace the `data.lower()` copy with `re.search(rb"<!doctype", data, re.IGNORECASE)`.
+
+  The owner chose to merge first; this is tracked for a follow-up change.
 
 ## Nomenclature & Code Symbol Audit
 

@@ -29,9 +29,9 @@
 ## 5. Verification & Empirical Audit
 
 - [x] 5.1 Run the full regression suite (`./.venv/bin/python -m unittest discover -s tests -v`), verify clean passes and unchanged generator digests, and record the pass counts
-- [ ] 5.2 Run the manual checks in tests.md on a local server and on a Vercel preview: over-limit refusal, platform 413 diagnosis, exact platform boundary, slicer 3MF exports and their zip structure, modifier rejection, own-output rejection, and upload-zone copy (PARTIAL: local-server HTTP checks done and logged in verification.md; the Vercel preview, browser, and slicer-export checks are still open)
+- [x] 5.2 Run the manual checks in tests.md on a local server and on a Vercel preview: over-limit refusal, platform 413 diagnosis, exact platform boundary, slicer 3MF exports and their zip structure, modifier rejection, own-output rejection, and upload-zone copy (local-server HTTP checks logged in verification.md; owner visual sign-off on the PR #11 preview 2026-11-10; slicer exports and the exact platform byte boundary were not run, see verification.md "Owner sign-off")
 - [x] 5.3 Populate `verification.md` with the Requirement Adherence Matrix, resolved assumptions (platform byte boundary, slicer 3MF structures, modifier markers), and verbatim execution logs
-- [ ] 5.4 Close PR #10 with a link to this change's implementation PR (left for the owner: closing PR #10 is their call once this PR is confirmed)
+- [x] 5.4 Close PR #10 with a link to this change's implementation PR (closed by the owner before merging PR #11)
 
 ## P01. PATCH-01: bound zip reads, report damaged packages as invalid models
 
