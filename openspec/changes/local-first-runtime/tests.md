@@ -2,14 +2,16 @@
 
 - `./.venv/bin/python -m unittest tests.test_local_runtime -v`:
   - **Dependency Parity**: Asserts that `pyproject.toml` dependencies match `requirements.txt`.
-  - **ASGI CORS Allowed Origins**: Verifies that requests with `Origin: https://kintsugi-studio.vercel.app` and preview URLs receive proper CORS response headers (`access-control-allow-origin`, `vary: Origin`, `access-control-allow-methods: GET, POST, OPTIONS`).
-  - **ASGI CORS Malicious Origin Rejection**: Verifies that requests with `Origin: https://evil.example` receive HTTP 403 on OPTIONS preflight and never receive CORS allow headers.
+  - **ASGI CORS Allowed Origins**: Verifies that requests with `Origin: https://kintsugi-fracture-joeshmo.vercel.app` and preview URLs (`https://kintsugi-fracture-abc-joeshmo.vercel.app`) receive proper CORS response headers (`access-control-allow-origin`, `vary: Origin`, `access-control-allow-methods: GET, POST, OPTIONS`).
+  - **ASGI CORS Malicious Preflight Rejection**: Verifies that requests with `Origin: https://evil.example` receive HTTP 403 on OPTIONS preflight and never receive CORS allow headers.
+  - **Server-Side Simple POST Rejection**: Verifies that a `POST /api/fracture` request with `Origin: https://evil.example` is immediately rejected with HTTP 403 Forbidden without parsing multipart bodies or creating jobs.
+  - **DNS Rebinding Defense**: Verifies that requests with an unauthorized `Host` header (e.g. `attacker.com`) are rejected with HTTP 403 Forbidden.
   - **No Credentials**: Verifies `access-control-allow-credentials: true` is never returned.
   - **Local Network Access (LNA) / PNA**: Verifies that OPTIONS preflight with `Access-Control-Request-Private-Network: true` receives `Access-Control-Allow-Private-Network: true` only when Origin is allowed.
   - **Port Reuse & Probe**: Verifies that `studio()` detects an already running Kintsugi Studio instance on port 8000 and exits cleanly without spawning duplicates, and probes 8001–8009 when port 8000 is occupied.
   - **Guard Timing**: Verifies that `generate_kintsugi_mesh` includes `"guard"` in `timings`.
 - `./.venv/bin/python -m unittest tests.test_viewer_js -v`:
-  - Verifies JavaScript helper functions for `resolveEngineUrl` under Node.js runtime.
+  - Verifies JavaScript helper functions for `resolveEngineUrl` and static preset index fallback under Node.js runtime.
 - `./.venv/bin/python -m unittest discover -s tests -v`:
   - Runs full project test suite ensuring zero regressions across all generators and formats.
 - `openspec validate local-first-runtime --strict`:

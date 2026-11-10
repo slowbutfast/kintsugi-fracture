@@ -31,16 +31,24 @@ The launcher SHALL probe port 8000 before starting a new server. If port 8000 is
 - **WHEN** port 8000 is occupied by an unrelated non-Kintsugi process
 - **THEN** system tests sequential ports `8001` through `8009`, binds the first available port, logs the bound URL, and opens the browser to that URL
 
-### Requirement: Pure ASGI CORS and Local Network Access security
-The local server SHALL enforce CORS and Local Network Access (LNA) policies via a pure ASGI middleware without using `BaseHTTPMiddleware`. It SHALL restrict access to loopback origins, production Vercel domains, and preview domains matching `^https://kintsugi-fracture-[a-zA-Z0-9_-]+-joeshmo\.vercel\.app$`.
+### Requirement: Pure ASGI server-side origin and host security
+The local server SHALL enforce cross-origin security and DNS rebinding protections via a pure ASGI middleware without using `BaseHTTPMiddleware`. It SHALL restrict access to loopback origins, production Vercel domain `https://kintsugi-fracture-joeshmo.vercel.app`, and preview domains matching `^https://kintsugi-fracture-[a-zA-Z0-9_-]+-joeshmo\.vercel\.app$`.
 
 #### Scenario: Allowed origin preflight with Private Network Access
-- **WHEN** a client at `https://kintsugi-studio.vercel.app` sends an `OPTIONS` request with `Access-Control-Request-Private-Network: true`
-- **THEN** system responds with HTTP 204, `Access-Control-Allow-Origin: https://kintsugi-studio.vercel.app`, `Access-Control-Allow-Methods: GET, POST, OPTIONS`, and `Access-Control-Allow-Private-Network: true`
+- **WHEN** a client at `https://kintsugi-fracture-joeshmo.vercel.app` sends an `OPTIONS` request with `Access-Control-Request-Private-Network: true`
+- **THEN** system responds with HTTP 204, `Access-Control-Allow-Origin: https://kintsugi-fracture-joeshmo.vercel.app`, `Access-Control-Allow-Methods: GET, POST, OPTIONS`, and `Access-Control-Allow-Private-Network: true`
 
-#### Scenario: Unauthorized origin rejected
+#### Scenario: Unauthorized preflight rejected
 - **WHEN** an untrusted origin (e.g. `https://evil.example`) sends an `OPTIONS` preflight request
 - **THEN** system responds with HTTP 403 and returns no CORS allow headers
+
+#### Scenario: Unauthorized simple POST rejected before body read
+- **WHEN** an untrusted origin (e.g. `https://evil.example`) sends a simple `POST /api/fracture` request
+- **THEN** system responds with HTTP 403 Forbidden without consuming or saving the request body or executing fracture logic
+
+#### Scenario: DNS rebinding rejected via Host header verification
+- **WHEN** an incoming HTTP request has an untrusted `Host` header (not `127.0.0.1:<port>`, `localhost:<port>`, or `[::1]:<port>`)
+- **THEN** system rejects the request with HTTP 403 Forbidden
 
 #### Scenario: No credential exposure
 - **WHEN** any cross-origin request is received
