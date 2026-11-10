@@ -27,8 +27,8 @@
 
 - [x] 5.1 Run `.venv/bin/python -m unittest tests/test_crack_shard.py -v` and the full regression suite `.venv/bin/python -m unittest discover -s tests -p "test_*.py" -v`, verifying 100% pass rate and zero regressions.
 - [x] 5.2 Populate `verification.md` with Requirement Adherence Matrix, resolved assumptions, contact sheet comparison summary, and verbatim execution logs.
-- [ ] 5.3 Perform visual inspection of `reports/contact_sheet_shard.png` side-by-side with `reports/contact_sheet.png` across all 12 cells.
-- [ ] 5.4 Human review and decision on future default generator (`growth` vs `shard`).
+- [ ] 5.3 Perform visual inspection of `reports/contact_sheet_shard.png` side-by-side with `reports/contact_sheet.png` across all 12 cells. (Not recorded as performed before archiving on 2026-11-10; left open. Shard output is now mainly used through the `hybrid` generator.)
+- [x] 5.4 Human review and decision on future default generator (`growth` vs `shard`). (Decided: `growth` stays the default; the follow-up `hybrid-crack-generator` change, merged in PR #9, combines shard through-fractures with growth hairlines and also keeps `growth` as default pending visual sign-off.)
 
 ## Patch 01: Expose Fracture Generator Selector in Web GUI & Docs
 
