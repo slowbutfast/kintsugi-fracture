@@ -17,7 +17,9 @@ import {
   isSameOriginLocalLocation,
   presetsFromStaticIndex,
   probeEngine,
+  queryLoopbackPermission,
   resolveEngineUrl as resolveEngineUrlWithBase,
+  withLoopbackAddressSpace,
 } from "./engine.js";
 
 const $ = (id) => document.getElementById(id);
@@ -414,14 +416,15 @@ class ApiError extends Error {
 
 async function requestJson(label, url, options = {}) {
   url = resolveEngineUrl(url);
-  const method = (options.method || "GET").toUpperCase();
+  const requestOptions = withLoopbackAddressSpace(url, options);
+  const method = (requestOptions.method || "GET").toUpperCase();
   const started = performance.now();
-  const request = { label, method, url, form: describeFormData(options.body) };
+  const request = { label, method, url, form: describeFormData(requestOptions.body) };
   console.info(`[kintsugi] → ${label}: ${method} ${url}`, request);
 
   let response;
   try {
-    response = await fetch(url, options);
+    response = await fetch(url, requestOptions);
   } catch (networkError) {
     const details = {
       ...request,
@@ -523,14 +526,22 @@ async function describeLocalFile(file) {
 }
 
 async function loadParts(parts) {
-  const loader = new STLLoader();
   const geometries = [];
   for (const part of parts) {
     if (!part.url) continue;
     const url = resolveEngineUrl(part.url);
     let geometry;
     try {
-      geometry = await loader.loadAsync(url);
+      // Fetch explicitly so loopback requests can declare targetAddressSpace;
+      // three.js FileLoader does not expose that RequestInit member.
+      const response = await fetch(
+        url,
+        withLoopbackAddressSpace(url, { cache: "no-store" })
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+      geometry = new STLLoader().parse(await response.arrayBuffer());
     } catch (error) {
       console.error(`[kintsugi] ✗ could not load mesh "${part.name}"`, {
         url,
@@ -894,6 +905,16 @@ async function initializeEngine() {
 
 async function connectEngine() {
   if (state.engineChecking) return;
+  const permission = await queryLoopbackPermission();
+  if (permission === "denied") {
+    setEngineStatus("error", {
+      message: "Local Engine: Loopback access denied",
+    });
+    setStatus(
+      "Loopback access is blocked. Re-enable Local network / Loopback network in browser site settings, then retry or open the local app."
+    );
+    return;
+  }
   const manual = ui.enginePortInput ? ui.enginePortInput.value.trim() : "";
   const ports = enginePortsFor(manual);
   const first = ports[0] || 8000;

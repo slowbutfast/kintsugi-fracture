@@ -70,6 +70,8 @@ running on `127.0.0.1:8000`, otherwise binds the first free port in
 `8000–8009`, then opens the same-origin Windows XP studio in the browser.
 `--no-open`, `--host`, `--port`, and `--log-level` are available; a non-loopback
 `--host` prints a security warning because the endpoints are unauthenticated.
+Vercel preview origins are not trusted by default; add `--allow-previews` only
+while reviewing a preview deployment, then restart without it.
 
 The hosted deployment
 (`https://kintsugi-fracture-joeshmo.vercel.app`) is a **static CDN only**: it

@@ -17,7 +17,9 @@ import {
   ENGINE_PORTS,
   presetsFromStaticIndex,
   probeEngine,
+  queryLoopbackPermission,
   resolveEngineUrl,
+  withLoopbackAddressSpace,
 } from "../../static/engine.js";
 
 // fflate's inflateSync(data) -> Uint8Array, backed by Node's zlib.
@@ -84,7 +86,9 @@ for (const item of engineJob.static_presets || []) {
 
 result.engine.probes = [];
 for (const item of engineJob.probes || []) {
-  const fetchImpl = async (url) => {
+  let seenOptions = null;
+  const fetchImpl = async (url, options) => {
+    seenOptions = options;
     const port = new URL(url).port;
     const spec = (item.responses || {})[port];
     if (!spec) throw new TypeError(`fetch failed for port ${port}`);
@@ -104,14 +108,46 @@ for (const item of engineJob.probes || []) {
       apiVersion: probe.apiVersion,
       compatible: probe.compatible,
       attempts: probe.attempts,
+      targetAddressSpace: seenOptions?.targetAddressSpace,
     });
   } catch (error) {
     result.engine.probes.push({
       name: item.name,
       ok: false,
       error: String(error.message || error),
+      targetAddressSpace: seenOptions?.targetAddressSpace,
     });
   }
+}
+
+result.engine.address_space = [];
+for (const item of engineJob.address_space || []) {
+  const options = withLoopbackAddressSpace(item.url, { method: "GET" });
+  result.engine.address_space.push({
+    name: item.name,
+    url: item.url,
+    targetAddressSpace: options.targetAddressSpace ?? null,
+    method: options.method,
+  });
+}
+
+result.engine.permissions = [];
+for (const item of engineJob.permissions || []) {
+  let permissionsLike;
+  if (item.behavior === "unsupported") {
+    permissionsLike = undefined;
+  } else {
+    permissionsLike = {
+      query: async (descriptor) => {
+        if (item.behavior === "throws") throw new TypeError("unknown permission");
+        return { name: descriptor.name, state: item.state };
+      },
+    };
+  }
+  result.engine.permissions.push({
+    name: item.name,
+    state: await queryLoopbackPermission(permissionsLike),
+  });
 }
 
 result.engine.versions = [];

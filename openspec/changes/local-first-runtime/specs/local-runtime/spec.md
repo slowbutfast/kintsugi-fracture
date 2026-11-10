@@ -32,11 +32,17 @@ The launcher SHALL probe port 8000 before starting a new server. If port 8000 is
 - **THEN** system tests sequential ports `8001` through `8009`, binds the first available port, logs the bound URL, and opens the browser to that URL
 
 ### Requirement: Pure ASGI server-side origin and host security
-The local server SHALL enforce cross-origin security and DNS rebinding protections via a pure ASGI middleware without using `BaseHTTPMiddleware`. It SHALL restrict access to loopback origins, production Vercel domain `https://kintsugi-fracture-joeshmo.vercel.app`, and preview domains matching `^https://kintsugi-fracture-[a-zA-Z0-9_-]+-joeshmo\.vercel\.app$`.
+The local server SHALL enforce cross-origin security and DNS rebinding protections via a pure ASGI middleware without using `BaseHTTPMiddleware`. It SHALL restrict access to loopback origins and the production Vercel domain `https://kintsugi-fracture-joeshmo.vercel.app`. Vercel preview domains matching `^https://kintsugi-fracture-[a-zA-Z0-9_-]+-joeshmo\.vercel\.app$` SHALL be trusted only after an explicit operator opt-in (`KINTSUGI_ALLOW_PREVIEWS=1` or `kintsugi-studio --allow-previews`), because `*.vercel.app` names are first-come-first-served and a squatted name could otherwise reach the local engine.
 
-#### Scenario: Allowed origin preflight with Private Network Access
-- **WHEN** a client at `https://kintsugi-fracture-joeshmo.vercel.app` sends an `OPTIONS` request with `Access-Control-Request-Private-Network: true`
-- **THEN** system responds with HTTP 204, `Access-Control-Allow-Origin: https://kintsugi-fracture-joeshmo.vercel.app`, `Access-Control-Allow-Methods: GET, POST, OPTIONS`, and `Access-Control-Allow-Private-Network: true`
+#### Scenario: Allowed origin preflight
+- **WHEN** a client at `https://kintsugi-fracture-joeshmo.vercel.app` sends an `OPTIONS` request
+- **THEN** system responds with HTTP 204, `Access-Control-Allow-Origin: https://kintsugi-fracture-joeshmo.vercel.app`, `Access-Control-Allow-Methods: GET, POST, OPTIONS`, and a `Vary: Origin` header
+
+#### Scenario: Preview origins require opt-in
+- **WHEN** a client at `https://kintsugi-fracture-x-joeshmo.vercel.app` sends an `OPTIONS` request without `KINTSUGI_ALLOW_PREVIEWS=1`
+- **THEN** system responds with HTTP 403 and no CORS allow headers
+- **AND WHEN** the operator starts the engine with `--allow-previews` and the same request is repeated
+- **THEN** system responds with HTTP 204 and the matching `Access-Control-Allow-Origin` header
 
 #### Scenario: Unauthorized preflight rejected
 - **WHEN** an untrusted origin (e.g. `https://evil.example`) sends an `OPTIONS` preflight request

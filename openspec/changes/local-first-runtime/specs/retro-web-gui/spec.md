@@ -3,11 +3,15 @@
 ## ADDED Requirements
 
 ### Requirement: Hosted companion engine connection and Local Network Access
-The web GUI SHALL support connecting to a local Kintsugi Studio engine (`http://127.0.0.1:8000`) when hosted on a remote or static origin. Connection attempts SHALL be triggered by an explicit user gesture ("Connect Engine" button) to satisfy browser Local Network Access (LNA) security policies. If connection fails or is blocked by browser mixed-content policies (such as in Apple Safari), the GUI SHALL provide an immediate fallback link to navigate directly to `http://127.0.0.1:8000`.
+The web GUI SHALL support connecting to a local Kintsugi Studio engine (`http://127.0.0.1:8000`) when hosted on a remote or static origin. Connection attempts SHALL be triggered by an explicit user gesture ("Connect Engine" button) to satisfy browser Local Network Access (LNA) security policies. Before probing, the GUI SHALL query the granular `loopback-network` permission when supported and SHALL explain how to re-enable access when denied. Every health, API, and `/outputs` request to a loopback engine SHALL declare `targetAddressSpace: "loopback"` so browsers can apply LNA and mixed-content exemptions. If connection fails or is blocked by browser mixed-content policies (such as in Apple Safari), the GUI SHALL provide an immediate fallback link to navigate directly to `http://127.0.0.1:8000`.
 
 #### Scenario: User-initiated engine connection
 - **WHEN** user clicks "Connect Engine" on the hosted web interface
-- **THEN** system sends a CORS health probe to `http://127.0.0.1:8000/api/health`, verifies `service: "kintsugi-studio"`, and transitions the UI status badge to connected
+- **THEN** system sends a CORS health probe with `targetAddressSpace: "loopback"` to `http://127.0.0.1:8000/api/health`, verifies `service: "kintsugi-studio"`, and transitions the UI status badge to connected
+
+#### Scenario: Loopback permission denied
+- **WHEN** the browser reports the `loopback-network` permission as `denied`
+- **THEN** system does not fire the probe, shows remediation instructions for browser site settings, and keeps the "Open Local App" fallback available
 
 #### Scenario: Blocked or offline companion fallback
 - **WHEN** user clicks "Connect Engine" and the probe fails or is blocked by browser mixed-content restrictions

@@ -12,6 +12,9 @@ output/determinism_*/
 output/round3_det_*/
 output/patch*_det_*/
 
+# Vercel static build output (assembled from static/ and presets/)
+public/
+
 # Local agent tooling
 .agent/
 .claude/

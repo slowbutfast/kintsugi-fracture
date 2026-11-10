@@ -6,6 +6,7 @@ Run with:  ./.venv/bin/python -m unittest tests.test_local_runtime -v
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import tempfile
 import tomllib
@@ -142,13 +143,12 @@ class SecurityMiddlewareTestCase(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls.client.close()
 
-    def test_allowed_production_preflight_has_cors_and_lna_headers(self) -> None:
+    def test_allowed_production_preflight_has_cors_headers(self) -> None:
         response = self.client.options(
             "/api/fracture",
             headers={
                 "Origin": PRODUCTION_ORIGIN,
                 "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Private-Network": "true",
             },
         )
         self.assertEqual(response.status_code, 204, response.text)
@@ -158,24 +158,42 @@ class SecurityMiddlewareTestCase(unittest.TestCase):
         self.assertIn(
             "POST", response.headers.get("access-control-allow-methods", "").split(", ")
         )
-        self.assertEqual(
-            response.headers.get("access-control-allow-private-network"), "true"
+        # LNA is permission + CORS based; the deprecated PNA header is not a gate.
+        self.assertIsNone(
+            response.headers.get("access-control-allow-private-network")
         )
         self.assertIsNone(response.headers.get("access-control-allow-credentials"))
         self.assertIn("Origin", response.headers.get("vary", ""))
 
-    def test_preview_origin_matches_the_documented_pattern(self) -> None:
+    def test_preview_origin_requires_an_explicit_opt_in(self) -> None:
+        headers = {
+            "Origin": PREVIEW_ORIGIN,
+            "Access-Control-Request-Method": "GET",
+        }
+        rejected = self.client.options("/api/health", headers=headers)
+        self.assertEqual(rejected.status_code, 403, rejected.text)
+        self.assertNotIn("access-control-allow-origin", rejected.headers)
+
+        with unittest.mock.patch.dict(
+            os.environ, {"KINTSUGI_ALLOW_PREVIEWS": "1"}
+        ):
+            accepted = self.client.options("/api/health", headers=headers)
+        self.assertEqual(accepted.status_code, 204, accepted.text)
+        self.assertEqual(
+            accepted.headers.get("access-control-allow-origin"), PREVIEW_ORIGIN
+        )
+
+    def test_preview_shaped_squatter_is_not_trusted_by_default(self) -> None:
+        squatted = "https://kintsugi-fracture-x-joeshmo.vercel.app"
         response = self.client.options(
-            "/api/health",
+            "/api/fracture",
             headers={
-                "Origin": PREVIEW_ORIGIN,
-                "Access-Control-Request-Method": "GET",
+                "Origin": squatted,
+                "Access-Control-Request-Method": "POST",
             },
         )
-        self.assertEqual(response.status_code, 204, response.text)
-        self.assertEqual(
-            response.headers.get("access-control-allow-origin"), PREVIEW_ORIGIN
-        )
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertNotIn("access-control-allow-origin", response.headers)
 
     def test_evil_origin_preflight_is_rejected_without_cors_headers(self) -> None:
         response = self.client.options(
@@ -183,7 +201,6 @@ class SecurityMiddlewareTestCase(unittest.TestCase):
             headers={
                 "Origin": EVIL_ORIGIN,
                 "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Private-Network": "true",
             },
         )
         self.assertEqual(response.status_code, 403, response.text)
@@ -287,7 +304,13 @@ class SecurityMiddlewareTestCase(unittest.TestCase):
             self.assertIn(f'id="{element_id}"', html, element_id)
 
         viewer = self.client.get("/viewer.js").text
-        for token in ("resolveEngineUrl", "./engine.js", "probeEngine", "connectEngine"):
+        for token in (
+            "resolveEngineUrl",
+            "./engine.js",
+            "probeEngine",
+            "connectEngine",
+            "targetAddressSpace",
+        ):
             self.assertIn(token, viewer, token)
 
         engine = self.client.get("/engine.js")
@@ -368,6 +391,23 @@ class LauncherTestCase(unittest.TestCase):
         joined = " ".join(logs.output).lower()
         self.assertIn("0.0.0.0", joined)
         self.assertIn("unauthenticated", joined)
+
+    def test_allow_previews_enables_the_preview_pattern_with_a_warning(self) -> None:
+        with unittest.mock.patch.dict(
+            os.environ, {"KINTSUGI_ALLOW_PREVIEWS": ""}
+        ), unittest.mock.patch.object(
+            web_app, "_probe_health", return_value=None
+        ), unittest.mock.patch.object(
+            web_app, "_port_available", return_value=True
+        ), unittest.mock.patch("uvicorn.run"), self.assertLogs(
+            web_app.logger, level="WARNING"
+        ) as logs:
+            code = web_app.studio(["--allow-previews", "--no-open"])
+            self.assertEqual(os.environ["KINTSUGI_ALLOW_PREVIEWS"], "1")
+        self.assertEqual(code, 0)
+        joined = " ".join(logs.output).lower()
+        self.assertIn("preview", joined)
+        self.assertIn("first-come", joined)
 
 
 class GuardTimingTestCase(unittest.TestCase):

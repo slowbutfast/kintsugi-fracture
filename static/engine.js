@@ -45,6 +45,49 @@ export function isLoopbackHostname(hostname = "") {
   return value === "127.0.0.1" || value === "localhost" || value === "::1";
 }
 
+/** True when an absolute URL targets an HTTP loopback endpoint. */
+export function isLoopbackHttpUrl(url, baseUrl) {
+  try {
+    // Relative URLs are same-origin (hosted or local) and never need LNA here.
+    const parsed = baseUrl ? new URL(String(url), baseUrl) : new URL(String(url));
+    return parsed.protocol === "http:" && isLoopbackHostname(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Declare `targetAddressSpace: "loopback"` for local engine requests.
+ *
+ * Chrome's Local Network Access (LNA) guidance requires this for HTTPS pages
+ * that call `http://127.0.0.1`; it exempts the request from mixed-content
+ * blocking before DNS resolution.  Browsers without LNA support ignore the
+ * unknown RequestInit member and keep the existing CORS/fallback behavior.
+ */
+export function withLoopbackAddressSpace(url, options = {}) {
+  if (!isLoopbackHttpUrl(url)) return { ...options };
+  return { ...options, targetAddressSpace: "loopback" };
+}
+
+/**
+ * Query Chrome's granular loopback permission without crashing older renderers.
+ * Unsupported or unknown permission names fall back to "prompt"; the explicit
+ * Connect Engine click still triggers the browser prompt where LNA exists.
+ */
+export async function queryLoopbackPermission(
+  permissionsLike = globalThis.navigator?.permissions
+) {
+  if (!permissionsLike || typeof permissionsLike.query !== "function") {
+    return "prompt";
+  }
+  try {
+    const status = await permissionsLike.query({ name: "loopback-network" });
+    return status?.state || "prompt";
+  } catch {
+    return "prompt";
+  }
+}
+
 /** True when the GUI itself was opened from the local engine (same-origin). */
 export function isSameOriginLocalLocation(locationLike) {
   if (!locationLike) return false;
@@ -85,7 +128,11 @@ export function presetsFromStaticIndex(index, baseUrl = "") {
 }
 
 async function fetchWithTimeout(fetchImpl, url, timeoutMs) {
-  const options = { method: "GET", mode: "cors", cache: "no-store" };
+  const options = withLoopbackAddressSpace(url, {
+    method: "GET",
+    mode: "cors",
+    cache: "no-store",
+  });
   if (typeof AbortController === "undefined" || !timeoutMs) {
     return fetchImpl(url, options);
   }

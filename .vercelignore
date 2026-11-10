@@ -17,3 +17,9 @@ logs
 *.py
 requirements*.txt
 pyproject.toml
+# Keep repository documentation and scratch files off the CDN.
+*.md
+empty.stl
+.gitignore
+.gitattributes
+.vercelignore

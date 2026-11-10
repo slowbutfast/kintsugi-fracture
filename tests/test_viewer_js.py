@@ -333,6 +333,20 @@ class ViewerJsTestCase(unittest.TestCase):
                     {"name": "major_mismatch", "version": "2.0"},
                     {"name": "missing", "version": None},
                 ],
+                "address_space": [
+                    {"name": "loopback_ipv4", "url": "http://127.0.0.1:8000/api/health"},
+                    {"name": "loopback_localhost", "url": "http://localhost:8001/outputs/x.stl"},
+                    {"name": "public_https",
+                     "url": "https://kintsugi-fracture-joeshmo.vercel.app/api/health"},
+                    {"name": "relative", "url": "/api/health"},
+                ],
+                "permissions": [
+                    {"name": "granted", "behavior": "supported", "state": "granted"},
+                    {"name": "prompt", "behavior": "supported", "state": "prompt"},
+                    {"name": "denied", "behavior": "supported", "state": "denied"},
+                    {"name": "unsupported", "behavior": "unsupported"},
+                    {"name": "unknown-name", "behavior": "throws"},
+                ],
             },
         }
         job_path = cls.dir / "job.json"
@@ -476,6 +490,30 @@ class ViewerJsTestCase(unittest.TestCase):
         self.assertEqual(probe["attempts"], [8000])
         self.assertEqual(probe["apiVersion"], "1.0")
         self.assertTrue(probe["compatible"])
+        self.assertEqual(probe["targetAddressSpace"], "loopback")
+
+    def test_loopback_requests_declare_their_address_space(self) -> None:
+        expectations = {
+            "loopback_ipv4": "loopback",
+            "loopback_localhost": "loopback",
+            "public_https": None,
+            "relative": None,
+        }
+        for name, expected in expectations.items():
+            with self.subTest(name=name):
+                item = self._engine("address_space", name)
+                self.assertEqual(item["targetAddressSpace"], expected)
+                self.assertEqual(item["method"], "GET")
+
+    def test_loopback_permission_queries_never_block_the_gesture(self) -> None:
+        states = {
+            item["name"]: item["state"] for item in self.results["engine"]["permissions"]
+        }
+        self.assertEqual(states["granted"], "granted")
+        self.assertEqual(states["prompt"], "prompt")
+        self.assertEqual(states["denied"], "denied")
+        self.assertEqual(states["unsupported"], "prompt")
+        self.assertEqual(states["unknown-name"], "prompt")
 
     def test_probe_engine_falls_forward_across_the_port_range(self) -> None:
         probe = self._engine("probes", "fallback_port")

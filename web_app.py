@@ -119,8 +119,18 @@ def _extra_hosts() -> set[str]:
     return allowed
 
 
+def _previews_allowed() -> bool:
+    """Vercel preview hostnames are first-come-first-served; opt in explicitly."""
+    return os.getenv("KINTSUGI_ALLOW_PREVIEWS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _origin_allowed(origin: str | None) -> bool:
-    """True for loopback origins, the production origin, and preview URLs."""
+    """True for loopback origins, production, and opted-in preview URLs."""
     if not origin:
         return False
     candidate = origin.strip().rstrip("/")
@@ -138,7 +148,7 @@ def _origin_allowed(origin: str | None) -> bool:
     normalized = f"{parsed.scheme}://{parsed.netloc.lower()}"
     if normalized == PRODUCTION_ORIGIN:
         return True
-    if PREVIEW_ORIGIN_RE.match(normalized):
+    if _previews_allowed() and PREVIEW_ORIGIN_RE.match(normalized):
         return True
     return normalized in _extra_origins()
 
@@ -169,7 +179,6 @@ def _cors_headers(
     *,
     preflight: bool = False,
     requested_headers: str | None = None,
-    private_network: bool = False,
 ) -> list[tuple[bytes, bytes]]:
     headers = [
         (b"access-control-allow-origin", origin.encode("latin-1")),
@@ -187,9 +196,9 @@ def _cors_headers(
             )
         )
         headers.append((b"access-control-max-age", b"600"))
-        if private_network:
-            headers.append((b"access-control-allow-private-network", b"true"))
-    # Credentials are intentionally never enabled: no cookies, no auth headers.
+    # Local Network Access is enforced by the browser's permission prompt plus
+    # standard CORS.  The deprecated PNA preflight header is intentionally not
+    # required; credentials are never enabled either.
     return headers
 
 
@@ -250,15 +259,10 @@ class SecurityCORSMiddleware:
                 )
                 await _send_security_error(send, 403, "Origin not allowed")
                 return
-            private_network = (
-                headers.get("access-control-request-private-network", "").lower()
-                == "true"
-            )
             response_headers = _cors_headers(
                 origin,
                 preflight=True,
                 requested_headers=headers.get("access-control-request-headers"),
-                private_network=private_network,
             )
             response_headers.append((b"content-length", b"0"))
             await send(
@@ -841,6 +845,11 @@ def studio(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-open", action="store_true", help="do not open a browser")
     parser.add_argument(
+        "--allow-previews",
+        action="store_true",
+        help="trust Vercel preview origins matching this project's pattern",
+    )
+    parser.add_argument(
         "--log-level", default=os.getenv("KINTSUGI_LOG_LEVEL", "info").lower()
     )
     args = parser.parse_args(argv)
@@ -852,6 +861,14 @@ def studio(argv: list[str] | None = None) -> int:
             "Studio endpoints to the local network. Use 127.0.0.1 unless you "
             "intend to share this instance.",
             args.host,
+        )
+    if args.allow_previews:
+        os.environ["KINTSUGI_ALLOW_PREVIEWS"] = "1"
+        logger.warning(
+            "SECURITY NOTICE: trusting Vercel preview origins matching %s. "
+            "Preview hostnames are first-come-first-served; use only while "
+            "reviewing a deployment.",
+            PREVIEW_ORIGIN_RE.pattern,
         )
     os.environ["KINTSUGI_SERVER_HOST"] = args.host
 

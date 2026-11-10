@@ -13,7 +13,7 @@ Your primary directive is to execute this change using the **`openspec-apply-sub
 | File Path (relative to repo root) | Target Lines | Modification Summary |
 |---|---|---|
 | `pyproject.toml` | `[NEW]` (`L1–L32`) | Define PEP 621 package metadata, dependencies matching `requirements.txt`, console script `[project.scripts] kintsugi-studio = "web_app:studio"`, and setuptools `py-modules`. |
-| `web_app.py` | `L50–L86` | Implement pure ASGI `SecurityCORSMiddleware`. Enforce server-side `Origin` checks on all POSTs and `/outputs/*` reads (rejecting untrusted origins with 403 before reading bodies). Enforce `Host` header check against loopback to prevent DNS rebinding. Handle LNA headers. `allow_credentials=False`. |
+| `web_app.py` | `L50–L86` | Implement pure ASGI `SecurityCORSMiddleware`. Enforce server-side `Origin` checks on all POSTs and `/outputs/*` reads (rejecting untrusted origins with 403 before reading bodies). Enforce `Host` header check against loopback to prevent DNS rebinding. Handle standard CORS and client-side LNA request options. `allow_credentials=False`. |
 | `web_app.py` | `L258–L266` | Update `GET /api/health` to return `"service": "kintsugi-studio"`, `"api_version": "1.0"`, `"max_upload_bytes": 52428800`, `"accepted_formats": [".stl", ".obj", ".3mf"]`. |
 | `web_app.py` | `L524–L537` | Implement `studio(argv=None)` entrypoint: deterministic port probe (8000–8009), instance reuse via `/api/health`, non-loopback security warning, and browser launcher thread. |
 | `vercel.json` | `L1–L10` | Remove `functions` block. Configure static asset delivery and rewrites for `static/` and `presets/`. |
@@ -24,7 +24,7 @@ Your primary directive is to execute this change using the **`openspec-apply-sub
 | `static/viewer.js` | `L900–L935` | Ensure fracture downloads and 3D preview meshes resolve through `resolveEngineUrl` so assets load from the local engine. |
 | `static/index.html` | Header / Status bar | Add connection status indicator badge, "Connect Engine" button, and fallback link in Windows XP style. |
 | `kintsugi.py` | `L4804–L4816` | Wrap the F1 STL round-trip and manifold audit (`_export_trimesh` + `_stl_bad_edge_count`) in timing measurement and record `timings["guard"]`. |
-| `tests/test_local_runtime.py` | `[NEW]` (`L1–L160`) | Unit test suite covering dependency parity, pure ASGI CORS origin filtering, simple POST rejection, Host header DNS rebinding defense, LNA header handling, port negotiation (8000–8009), and `timings["guard"]`. |
+| `tests/test_local_runtime.py` | `[NEW]` (`L1–L160`) | Unit test suite covering dependency parity, pure ASGI CORS origin filtering, simple POST rejection, Host header DNS rebinding defense, LNA request handling, port negotiation (8000–8009), and `timings["guard"]`. |
 | `tests/test_viewer_js.py` | `L1–L120` | Add unit tests for `resolveEngineUrl` and static preset index loading under Node.js runtime. |
 
 ## 3. Technical & Architectural Boundaries
@@ -35,7 +35,7 @@ Your primary directive is to execute this change using the **`openspec-apply-sub
   - DNS rebinding defense: Enforce `Host` header is loopback.
   - Chrome Local Network Access (LNA) user-gesture connection flow; Safari fallback link to `http://127.0.0.1:8000`.
   - Deterministic port range probe across 8000–8009.
-  - Real production origin `https://kintsugi-fracture-joeshmo.vercel.app` and preview regex `^https://kintsugi-fracture-[a-zA-Z0-9_-]+-joeshmo\.vercel\.app$`.
+  - Real production origin `https://kintsugi-fracture-joeshmo.vercel.app`; preview regex is trusted only with `--allow-previews` opt-in.
 - **Hard Exclusions / No-Go**:
   - Do NOT modify `.env`, `.env.*`, or credential files.
   - Do NOT introduce unapproved external dependencies (maintain parity between `pyproject.toml` and `requirements.txt`).
@@ -78,14 +78,14 @@ Your primary directive is to execute this change using the **`openspec-apply-sub
 - [ ] 1.2 Scaffold failing tests for pure ASGI CORS origin filtering matching `https://kintsugi-fracture-joeshmo.vercel.app` and preview URLs
 - [ ] 1.3 Scaffold failing tests for server-side rejection of simple `POST` requests and `/outputs/*` reads from unauthorized `Origin` headers before body consumption
 - [ ] 1.4 Scaffold failing tests for `Host` header DNS rebinding rejection (rejecting hosts outside loopback)
-- [ ] 1.5 Scaffold failing tests for Local Network Access (LNA) / PNA preflight header response (`Access-Control-Allow-Private-Network`)
+- [ ] 1.5 Scaffold failing tests for Local Network Access (LNA) client behavior: `targetAddressSpace: "loopback"` and permission fallback
 - [ ] 1.6 Scaffold failing tests for port negotiation (8000–8009), instance reuse via `/api/health`, and non-loopback host warning in `studio()`
 - [ ] 1.7 Scaffold failing tests for `timings["guard"]` instrumentation in `kintsugi.py`
 - [ ] 1.8 Scaffold JavaScript unit tests in `tests/test_viewer_js.py` for `resolveEngineUrl` and static preset index loading
 
 ### 2. Packaging & Security Middleware Implementation
 - [ ] 2.1 Create `pyproject.toml` with PEP 621 metadata, dependencies matching `requirements.txt`, and console script `kintsugi-studio = "web_app:studio"`
-- [ ] 2.2 Implement pure ASGI `SecurityCORSMiddleware` in `web_app.py` enforcing strict origin validation, state-changing POST checks, Host header validation, and LNA header handling without `BaseHTTPMiddleware`
+- [ ] 2.2 Implement pure ASGI `SecurityCORSMiddleware` in `web_app.py` enforcing strict origin validation, state-changing POST checks, Host header validation, and standard CORS/LNA handling without `BaseHTTPMiddleware`
 - [ ] 2.3 Implement launcher entrypoint `studio(argv=None)` in `web_app.py` with sequential port probing (8000–8009), instance reuse, and security warnings
 - [ ] 2.4 Add `timings["guard"]` measurement around the F1 STL round-trip and manifold audit in `kintsugi.py`
 - [ ] 2.5 Generate `static/presets/index.json` containing metadata for bundled presets
@@ -98,7 +98,7 @@ Your primary directive is to execute this change using the **`openspec-apply-sub
 - [ ] 3.4 Implement `api_version` handshake in `GET /api/health` and verify compatibility on companion connection
 
 ### 4. Verification & Empirical Audit
-- [ ] 4.1 Perform Gate 0 cross-browser verification on real HTTPS Vercel preview (Chrome LNA prompt, Firefox CORS, Safari mixed content fallback)
+- [ ] 4.1 Perform Gate 4.1 cross-browser verification on real HTTPS Vercel preview (root `/` loads the GUI, Chrome LNA prompt, Firefox CORS, Safari mixed content fallback)
 - [ ] 4.2 Run full regression test suite (`python -m unittest discover -s tests -v`) and verify clean pass across all generators
 - [ ] 4.3 Strictly validate OpenSpec change artifacts (`openspec validate local-first-runtime --strict`)
 - [ ] 4.4 Populate `verification.md` with Requirement Adherence Matrix, resolved assumptions, and verbatim execution logs

@@ -81,23 +81,25 @@ flowchart TB
 
 #### A3. Strict Pure ASGI Origin & Host Security Check
 - **Decision:** Implement `SecurityCORSMiddleware` as pure ASGI middleware without `BaseHTTPMiddleware` (which buffers bodies).
-  - **Allowed Origins**: `http://127.0.0.1:<port>`, `http://localhost:<port>`, `https://kintsugi-fracture-joeshmo.vercel.app`, and `^https://kintsugi-fracture-[a-zA-Z0-9_-]+-joeshmo\.vercel\.app$`. Configurable via `KINTSUGI_ALLOWED_ORIGINS`.
+  - **Allowed Origins**: `http://127.0.0.1:<port>`, `http://localhost:<port>`, and `https://kintsugi-fracture-joeshmo.vercel.app`. Vercel preview origins matching `^https://kintsugi-fracture-[a-zA-Z0-9_-]+-joeshmo\.vercel\.app$` are trusted only with an explicit `KINTSUGI_ALLOW_PREVIEWS=1` / `--allow-previews` opt-in, because preview hostnames are first-come-first-served. Additional origins can be configured via `KINTSUGI_ALLOWED_ORIGINS`.
   - **Simple Request Defense**: In standard CORS, `multipart/form-data` POSTs are sent without preflight. On **every** POST, PUT, DELETE, and `/outputs/*` read, verify the `Origin` header if present. If `Origin` is present and unauthorized, immediately return HTTP 403 Forbidden before reading the request body.
   - **DNS Rebinding Defense**: Inspect the `Host` header. Reject requests where `Host` is not `127.0.0.1:<port>`, `localhost:<port>`, or `[::1]:<port>` (or the explicit `--host` argument).
-  - **Preflight & LNA**: For allowed origins sending OPTIONS with `Access-Control-Request-Private-Network: true`, respond with `Access-Control-Allow-Private-Network: true`. Unauthorized origins receive 403 without CORS headers.
+  - **Preflight & LNA**: Respond to allowed-origin preflights with standard CORS headers. Local Network Access is enforced client-side by the browser permission prompt; do not add deprecated Private Network Access (PNA) preflight headers to new code.
   - **Credentials**: `allow_credentials=False` always.
 
 #### A4. Static Vercel Deployment & Presets Index
 - **Decision:**
   - Remove `app.py` from repository (or disable it) so Vercel does not detect a FastAPI framework.
-  - Update `vercel.json` with `cleanUrls: true` and rewrites to serve `static/` as root and route `/presets/:path*` to `presets/:path*`.
+  - Build a dedicated static output directory: `vercel.json` runs `mkdir -p public/presets && cp -R static/. public/ && cp -R presets/. public/presets/` and sets `outputDirectory: "public"`. Only GUI assets and preset files reach the CDN; repository docs, Python sources, and future root files stay private by default.
   - Add static file `static/presets/index.json` containing preset metadata. In `static/viewer.js`, fetch `resolveEngineUrl("/api/presets")` when connected, or fall back to `/presets/index.json` when disconnected or static.
-- **Why:** Eliminates all Vercel serverless compute costs, 4.5 MB request limits, 300 s timeouts, and the 2 GB memory crash.
+- **Why:** Eliminates all Vercel serverless compute costs, 4.5 MB request limits, 300 s timeouts, the 2 GB memory crash, and the front-door 404 risk from clean-URL rewrites.
 
 #### A5. Hosted Companion UI & Asset URL Rewriting
 - **Decision:**
-  - "Connect Engine" button (user gesture required for Chrome 142+ LNA permission prompt).
-  - "Open Local App (127.0.0.1:8000) ↗" direct link as universal fallback for Safari (which blocks HTTPS $\rightarrow$ HTTP loopback as mixed content under WebKit Bug 171934).
+  - "Connect Engine" button (user gesture required for Chrome LNA permission prompts).
+  - Before probing, query the granular `loopback-network` permission when supported; denial shows remediation while keeping the fallback link.
+  - Every health/API/`/outputs` request to a loopback engine declares `targetAddressSpace: "loopback"` so Chrome can apply LNA and mixed-content exemptions.
+  - "Open Local App (127.0.0.1:8000) ↗" direct link as universal fallback for Safari.
   - `resolveEngineUrl(path)` in `viewer.js` prefixes `/outputs/...` and download URLs with the active engine base URL.
   - `api_version` handshake in `GET /api/health` (`"api_version": "1.0"`) alerts users if the local clone is out of sync.
 
