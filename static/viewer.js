@@ -3,10 +3,20 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import * as fflate from "three/addons/libs/fflate.module.js";
+import { read3mf } from "./threemf.js";
+import {
+  DEFAULT_LIMITS,
+  checkUploadAllowed,
+  limitsFromHealth,
+  listFormats,
+  uploadSubtitle,
+} from "./upload.js";
 
 const $ = (id) => document.getElementById(id);
 
 const state = {
+  limits: { ...DEFAULT_LIMITS, acceptedFormats: [...DEFAULT_LIMITS.acceptedFormats] },
   presets: [],
   currentPreset: "",
   customFile: null,
@@ -20,6 +30,7 @@ const ui = {
   preset: $("preset-select"),
   fileInput: $("file-input"),
   uploadZone: $("upload-zone"),
+  uploadSubtitle: $("upload-subtitle"),
   modelNote: $("model-note"),
   ratio: $("ratio-slider"),
   ratioValue: $("ratio-value"),
@@ -329,12 +340,179 @@ function addGeometry(geometry, material, name) {
   state.meshGroup.add(mesh);
 }
 
+// ---------------------------------------------------------------------------
+// Verbose request diagnostics.  Every API call goes through requestJson so a
+// non-JSON body (proxy error page, platform limit, plain-text 500) is reported
+// with its status, headers and the first bytes of the body instead of a bare
+// "JSON parse error".  Full context is written to the browser console.
+// ---------------------------------------------------------------------------
+const DIAG_HEADERS = [
+  "content-type",
+  "content-length",
+  "x-kintsugi-request-id",
+  "x-vercel-id",
+  "x-vercel-error",
+  "x-vercel-cache",
+  "server",
+];
+
+function describeFormData(form) {
+  if (!form || typeof form.entries !== "function") return null;
+  const fields = {};
+  for (const [key, value] of form.entries()) {
+    fields[key] =
+      value instanceof File
+        ? {
+            file: value.name,
+            bytes: value.size,
+            mb: Number((value.size / (1024 * 1024)).toFixed(3)),
+            type: value.type || "(none)",
+            lastModified: new Date(value.lastModified).toISOString(),
+          }
+        : value;
+  }
+  return fields;
+}
+
+function snippet(text, limit) {
+  const flat = String(text).replace(/\s+/g, " ").trim();
+  return flat.length > limit ? `${flat.slice(0, limit)}…` : flat;
+}
+
+class ApiError extends Error {
+  constructor(message, details) {
+    super(message);
+    this.name = "ApiError";
+    this.details = details;
+  }
+}
+
+async function requestJson(label, url, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  const started = performance.now();
+  const request = { label, method, url, form: describeFormData(options.body) };
+  console.info(`[kintsugi] → ${label}: ${method} ${url}`, request);
+
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (networkError) {
+    const details = {
+      ...request,
+      stage: "network",
+      elapsedMs: Math.round(performance.now() - started),
+      error: networkError,
+    };
+    console.error(`[kintsugi] ✗ ${label}: no response (network error)`, details);
+    throw new ApiError(
+      `${label}: no response from server (${networkError.message}). See browser console.`,
+      details
+    );
+  }
+
+  const headers = {};
+  for (const name of DIAG_HEADERS) {
+    const value = response.headers.get(name);
+    if (value !== null) headers[name] = value;
+  }
+  const rawText = await response.text();
+  const details = {
+    ...request,
+    status: response.status,
+    statusText: response.statusText,
+    ok: response.ok,
+    redirected: response.redirected,
+    finalUrl: response.url,
+    elapsedMs: Math.round(performance.now() - started),
+    headers,
+    bodyBytes: rawText.length,
+    bodyPreview: rawText.slice(0, 2000),
+  };
+
+  let body;
+  try {
+    body = rawText === "" ? null : JSON.parse(rawText);
+  } catch (parseError) {
+    details.stage = "parse-json";
+    details.parseError = parseError.message;
+    console.error(
+      `[kintsugi] ✗ ${label}: HTTP ${response.status} returned non-JSON body`,
+      details
+    );
+    const vercel = headers["x-vercel-error"] ? `, Vercel error ${headers["x-vercel-error"]}` : "";
+    throw new ApiError(
+      `${label}: server returned non-JSON (HTTP ${response.status} ${response.statusText}` +
+        `, ${headers["content-type"] || "no content-type"}, ${rawText.length} bytes${vercel}). ` +
+        `Body starts: "${snippet(rawText, 120)}". See browser console.`,
+      details
+    );
+  }
+  details.body = body;
+
+  if (!response.ok) {
+    details.stage = "http-error";
+    console.error(`[kintsugi] ✗ ${label}: HTTP ${response.status}`, details);
+    const detail =
+      body && body.detail !== undefined
+        ? typeof body.detail === "string"
+          ? body.detail
+          : JSON.stringify(body.detail)
+        : snippet(rawText, 200) || "(empty body)";
+    const errorType = body && body.error_type ? ` [${body.error_type}]` : "";
+    const requestId = headers["x-kintsugi-request-id"]
+      ? ` (request ${headers["x-kintsugi-request-id"]})`
+      : "";
+    throw new ApiError(
+      `${label}: HTTP ${response.status} ${response.statusText}${errorType}: ${detail}${requestId}`,
+      details
+    );
+  }
+
+  console.info(
+    `[kintsugi] ✓ ${label}: HTTP ${response.status} in ${details.elapsedMs} ms`,
+    details
+  );
+  return body;
+}
+
+async function describeLocalFile(file) {
+  const head = new Uint8Array(await file.slice(0, 84).arrayBuffer());
+  const ascii = Array.from(head.slice(0, 80))
+    .map((byte) => (byte >= 32 && byte < 127 ? String.fromCharCode(byte) : "."))
+    .join("");
+  const info = {
+    name: file.name,
+    bytes: file.size,
+    type: file.type || "(none)",
+    headerAscii: ascii,
+    startsWithSolid: ascii.trimStart().toLowerCase().startsWith("solid"),
+  };
+  if (head.length >= 84) {
+    const triangles = new DataView(head.buffer).getUint32(80, true);
+    info.binaryTriangleCount = triangles;
+    info.binaryExpectedBytes = 84 + triangles * 50;
+    info.binarySizeMatches = info.binaryExpectedBytes === file.size;
+  }
+  return info;
+}
+
 async function loadParts(parts) {
   const loader = new STLLoader();
   const geometries = [];
   for (const part of parts) {
     if (!part.url) continue;
-    const geometry = await loader.loadAsync(part.url);
+    let geometry;
+    try {
+      geometry = await loader.loadAsync(part.url);
+    } catch (error) {
+      console.error(`[kintsugi] ✗ could not load mesh "${part.name}"`, {
+        url: part.url,
+        error,
+      });
+      throw new Error(
+        `Could not load mesh "${part.name}" from ${part.url}: ${error.message || error}`
+      );
+    }
     geometries.push({ geometry, material: part.material, name: part.name });
   }
   clearModel();
@@ -359,10 +537,13 @@ function updateMeshStatus(extra = "", tone = "") {
   ui.statusMesh.textContent = `Faces: ${Math.round(faces).toLocaleString()} | Parts: ${parts}${suffix}`;
   ui.statusMesh.classList.remove("status-success", "status-error");
   if (tone) ui.statusMesh.classList.add(`status-${tone}`);
+  // Long messages are truncated by the status bar; the full text is on hover.
+  ui.statusMesh.title = ui.statusMesh.textContent;
 }
 
 function setStatus(text) {
   ui.statusOperation.textContent = text;
+  ui.statusOperation.title = text;
 }
 
 function setBusy(busy) {
@@ -507,10 +688,8 @@ async function loadPreset(presetId) {
 
 async function loadPresets() {
   try {
-    const response = await fetch("/api/presets");
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const body = await response.json();
-    state.presets = body.presets || [];
+    const body = await requestJson("Load presets", "/api/presets");
+    state.presets = (body && body.presets) || [];
     ui.preset.innerHTML = "";
     for (const preset of state.presets) {
       const option = document.createElement("option");
@@ -532,13 +711,62 @@ async function loadPresets() {
   }
 }
 
+// A 3MF preview failure is not fatal: the server's validation decides.
+async function previewThreeMf(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const { positions } = read3mf(buffer, { inflateSync: fflate.inflateSync });
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    clearModel();
+    addGeometry(geometry, ceramicMaterial, file.name);
+    frameObject();
+  } catch (error) {
+    clearModel();
+    console.warn(
+      `[kintsugi] 3MF preview failed for ${file.name}; the server will still validate it`,
+      error
+    );
+    setStatus(`Preview unavailable for ${file.name}: ${error.message}. Checking on the server…`);
+  }
+}
+
+async function loadLimits() {
+  try {
+    const body = await requestJson("Load limits", "/api/health");
+    state.limits = limitsFromHealth(body);
+  } catch (error) {
+    console.warn("[kintsugi] could not read /api/health; using default upload limits", error);
+  }
+  applyUploadLimits();
+}
+
+function applyUploadLimits() {
+  const formats = state.limits.acceptedFormats;
+  if (ui.fileInput) ui.fileInput.accept = formats.join(",");
+  if (ui.uploadSubtitle) ui.uploadSubtitle.textContent = uploadSubtitle(state.limits);
+  if (ui.uploadZone) {
+    const names = formats.map((suffix) => suffix.slice(1).toUpperCase());
+    ui.uploadZone.setAttribute("aria-label", `Upload a custom ${listFormats(names)}`);
+  }
+}
+
 async function handleCustomFile(file) {
   if (!file) return;
-  const normalized = file.name.toLowerCase();
-  if (!normalized.endsWith(".stl") && !normalized.endsWith(".obj")) {
-    setStatus("Only .stl and .obj files are supported");
+  // Refuse before sending anything: a platform limit (Vercel: 4.5 MB) answers
+  // with a plain-text 413 that the app can no longer explain.
+  const refusal = checkUploadAllowed(file, state.limits);
+  if (refusal) {
+    console.warn(`[kintsugi] refused ${file.name} before upload: ${refusal}`, {
+      bytes: file.size,
+      limits: state.limits,
+    });
+    setStatus(refusal);
+    updateMeshStatus("Upload refused", "error");
+    ui.fileInput.value = ""; // choosing the same file again must fire "change"
     return;
   }
+  const normalized = file.name.toLowerCase();
   state.customFile = file;
   state.currentPreset = "";
   state.uploadValid = false;
@@ -555,6 +783,8 @@ async function handleCustomFile(file) {
       clearModel();
       addGeometry(geometry, ceramicMaterial, file.name);
       frameObject();
+    } else if (normalized.endsWith(".3mf")) {
+      await previewThreeMf(file);
     } else {
       const text = await file.text();
       const group = new OBJLoader().parse(text);
@@ -569,6 +799,17 @@ async function handleCustomFile(file) {
     }
     await validateCustomFile(file);
   } catch (error) {
+    let fileInfo = null;
+    try {
+      fileInfo = await describeLocalFile(file);
+    } catch (inspectError) {
+      fileInfo = { name: file.name, bytes: file.size, inspectError: String(inspectError) };
+    }
+    console.error(`[kintsugi] ✗ could not read local model ${file.name}`, {
+      stage: "local-parse",
+      file: fileInfo,
+      error,
+    });
     state.uploadValid = false;
     ui.fracture.disabled = true;
     updateMeshStatus(`Could not read ${file.name}: ${error.message}`, "error");
@@ -581,12 +822,11 @@ async function validateCustomFile(file) {
   form.append("file", file);
   setStatus(`Validating watertightness of ${file.name}…`);
   try {
-    const response = await fetch("/api/validate", { method: "POST", body: form });
-    const body = await response.json();
-    if (!response.ok) {
-      throw new Error(body.detail || `HTTP ${response.status}`);
-    }
-    if (body.valid) {
+    const body = await requestJson("Validate upload", "/api/validate", {
+      method: "POST",
+      body: form,
+    });
+    if (body && body.valid) {
       state.uploadValid = true;
       ui.fracture.disabled = false;
       const wall =
@@ -600,10 +840,12 @@ async function validateCustomFile(file) {
       updateMeshStatus(`Watertight ✓${vertices}${wall}`, "success");
       setStatus(`Ready · ${file.name}`);
     } else {
+      console.warn(`[kintsugi] validation rejected ${file.name}`, body);
       state.uploadValid = false;
       ui.fracture.disabled = true;
-      updateMeshStatus(`Not a valid closed solid: ${body.detail}`, "error");
-      setStatus(`Invalid model: ${body.detail}`);
+      const detail = (body && body.detail) || "(empty validation response)";
+      updateMeshStatus(`Not a valid closed solid: ${detail}`, "error");
+      setStatus(`Invalid model: ${detail}`);
     }
   } catch (error) {
     state.uploadValid = false;
@@ -658,11 +900,10 @@ async function fracture() {
 
   setBusy(true);
   try {
-    const response = await fetch("/api/fracture", { method: "POST", body: form });
-    const body = await response.json();
-    if (!response.ok) {
-      throw new Error(body.detail || `HTTP ${response.status}`);
-    }
+    const body = await requestJson("Fracture", "/api/fracture", {
+      method: "POST",
+      body: form,
+    });
 
     state.downloads = body.downloads;
     setDownload(ui.downloadCeramic, body.downloads.ceramic_stl, "ceramic_body.stl");
@@ -701,6 +942,9 @@ async function fracture() {
       `Ceramic ${volumes.ceramic.toFixed(1)} mm³ · Gold ${volumes.gold.toFixed(1)} mm³${fragmentSuffix}`
     );
   } catch (error) {
+    if (!(error instanceof ApiError)) {
+      console.error("[kintsugi] ✗ fracture failed after the API call", error);
+    }
     setStatus(`Fracture failed: ${error.message}`);
   } finally {
     setBusy(false);
@@ -880,6 +1124,7 @@ async function start() {
   setDownload(ui.menuDownloadGold, null);
   setDownload(ui.menuDownload3mf, null);
   switchMobileTab("fracture");
+  await loadLimits();
   await loadPresets();
 }
 
