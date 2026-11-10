@@ -12,12 +12,19 @@ import {
   limitsFromHealth,
   uploadSubtitle,
 } from "../../static/upload.js";
+import {
+  apiVersionCompatible,
+  ENGINE_PORTS,
+  presetsFromStaticIndex,
+  probeEngine,
+  resolveEngineUrl,
+} from "../../static/engine.js";
 
 // fflate's inflateSync(data) -> Uint8Array, backed by Node's zlib.
 const inflateSync = (data) => new Uint8Array(inflateRawSync(data));
 
 const job = JSON.parse(readFileSync(process.argv[2], "utf-8"));
-const result = { threemf: [], upload: [], subtitle: [] };
+const result = { threemf: [], upload: [], subtitle: [], engine: {} };
 
 const DEFAULT_THREEMF_LIMITS = { ...LIMITS };
 for (const item of job.threemf || []) {
@@ -49,6 +56,70 @@ for (const item of job.upload || []) {
 for (const item of job.subtitle || []) {
   const limits = item.health ? limitsFromHealth(item.health) : DEFAULT_LIMITS;
   result.subtitle.push({ name: item.name, text: uploadSubtitle(limits) });
+}
+
+// Engine companion helpers: resolveEngineUrl, static preset manifests, and the
+// deterministic 8000-8009 port probe.  Fetch is stubbed with the per-port
+// responses supplied by the Python test.
+const engineJob = job.engine || {};
+result.engine.resolve = [];
+for (const item of engineJob.resolve || []) {
+  result.engine.resolve.push({
+    name: item.name,
+    url: resolveEngineUrl(item.path, item.base),
+  });
+}
+
+result.engine.static_presets = [];
+for (const item of engineJob.static_presets || []) {
+  const raw = JSON.parse(readFileSync(item.indexFile, "utf-8"));
+  const presets = presetsFromStaticIndex(raw, item.base || "");
+  result.engine.static_presets.push({
+    name: item.name,
+    presets,
+    ids: presets.map((preset) => preset.id),
+    meshUrls: presets.map((preset) => preset.mesh_url),
+  });
+}
+
+result.engine.probes = [];
+for (const item of engineJob.probes || []) {
+  const fetchImpl = async (url) => {
+    const port = new URL(url).port;
+    const spec = (item.responses || {})[port];
+    if (!spec) throw new TypeError(`fetch failed for port ${port}`);
+    return {
+      ok: spec.status >= 200 && spec.status < 300,
+      status: spec.status,
+      json: async () => spec.body,
+    };
+  };
+  try {
+    const probe = await probeEngine({ fetchImpl, ports: item.ports || ENGINE_PORTS });
+    result.engine.probes.push({
+      name: item.name,
+      ok: true,
+      port: probe.port,
+      baseUrl: probe.baseUrl,
+      apiVersion: probe.apiVersion,
+      compatible: probe.compatible,
+      attempts: probe.attempts,
+    });
+  } catch (error) {
+    result.engine.probes.push({
+      name: item.name,
+      ok: false,
+      error: String(error.message || error),
+    });
+  }
+}
+
+result.engine.versions = [];
+for (const item of engineJob.versions || []) {
+  result.engine.versions.push({
+    name: item.name,
+    compatible: apiVersionCompatible(item.version),
+  });
 }
 
 process.stdout.write(JSON.stringify(result));

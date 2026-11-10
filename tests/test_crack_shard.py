@@ -361,7 +361,7 @@ class CrackShardTestCase(unittest.TestCase):
                 web_app, "OUTPUT_DIR", Path(tmp) / "web"
             ):
                 Path(web_app.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-                client = TestClient(web_app.app)
+                client = TestClient(web_app.app, base_url="http://127.0.0.1:8000")
                 try:
                     response = client.post(
                         "/api/fracture",
@@ -405,7 +405,7 @@ class CrackShardTestCase(unittest.TestCase):
 
         import web_app
 
-        client = TestClient(web_app.app)
+        client = TestClient(web_app.app, base_url="http://127.0.0.1:8000")
         try:
             html_res = client.get("/")
             self.assertEqual(html_res.status_code, 200)

@@ -34,8 +34,11 @@ Requires Python 3.11.
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+.venv/bin/pip install -e . -r requirements-dev.txt
 ```
+
+`pip install -e .` installs the `kintsugi-studio` console script. The legacy
+`pip install -r requirements.txt` workflow remains supported.
 
 ## Usage
 
@@ -59,6 +62,25 @@ result = kintsugi.generate_kintsugi_mesh(
 **Web GUI** (a Windows XP-styled viewer built on Three.js and FastAPI, featuring a `Generator` dropdown in `Fracture Controls` to switch between `Rim Growth`, `Shard Planes`, and `Periodic Voronoi`)
 
 ```bash
+.venv/bin/kintsugi-studio
+```
+
+`kintsugi-studio` is the zero-friction local path: it reuses an instance already
+running on `127.0.0.1:8000`, otherwise binds the first free port in
+`8000–8009`, then opens the same-origin Windows XP studio in the browser.
+`--no-open`, `--host`, `--port`, and `--log-level` are available; a non-loopback
+`--host` prints a security warning because the endpoints are unauthenticated.
+
+The hosted deployment
+(`https://kintsugi-fracture-joeshmo.vercel.app`) is a **static CDN only**: it
+serves the GUI and `presets/index.json`. Click **Connect Engine** to attach it to
+your local studio. Chrome asks for Local Network Access permission; Safari (and
+any browser that blocks HTTPS → HTTP loopback) shows an
+**Open Local App (127.0.0.1:8000) ↗** fallback link instead.
+
+For the legacy direct server invocation:
+
+```bash
 .venv/bin/python web_app.py --host 127.0.0.1 --port 8000
 ```
 
@@ -80,7 +102,9 @@ Day to day, tests run on a workstation and come back to the VPS as a standard re
 The individual commands:
 
 ```bash
-.venv/bin/python -m unittest discover -s tests -v          # 36 tests
+.venv/bin/python -m unittest tests.test_local_runtime -v  # packaging, ASGI security, launcher, guard
+.venv/bin/python -m unittest tests.test_viewer_js -v      # viewer modules under Node
+.venv/bin/python -m unittest discover -s tests -v         # full suite
 .venv/bin/python tools/crack_graph_audit.py --seeds 200      # graph on the true periodic Voronoi; 0 crossings
 .venv/bin/python tools/noise_fold_audit.py                   # noise-field folding (0.0% fold area on presets)
 .venv/bin/python tools/sweep.py --presets tea_bowl vase --ratios 0 0.05 0.2 0.5 0.9 0.99 --modes ribbon vein --seeds 0 1 2 3 4 5

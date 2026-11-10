@@ -241,6 +241,13 @@
 
       <footer class="status-bar">
         <div class="status-cell status-grow" id="status-operation">Ready</div>
+        <div class="status-cell engine-cell" id="engine-status-cell">
+          <span class="engine-dot engine-disconnected" id="engine-dot" aria-hidden="true"></span>
+          <span class="engine-status-text" id="engine-status">Local Engine: Disconnected</span>
+          <input class="xp-input engine-port-input" id="engine-port-input" type="number" min="8000" max="8009" inputmode="numeric" placeholder="Port" aria-label="Engine port (optional)" />
+          <button class="engine-button" id="connect-engine" type="button">Connect Engine</button>
+          <a class="engine-link" id="engine-link" href="http://127.0.0.1:8000" target="_blank" rel="noopener" hidden>Open Local App (127.0.0.1:8000) ↗</a>
+        </div>
         <div class="status-cell" id="status-mesh">Faces: — | Watertight: —</div>
         <div class="status-cell" id="status-kernel">Kernel: Manifold3D v3.5</div>
       </footer>

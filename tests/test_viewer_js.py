@@ -24,6 +24,7 @@ from tests import fixtures
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNNER = ROOT / "tests" / "js" / "runner.mjs"
+STATIC_PRESETS = ROOT / "static" / "presets" / "index.json"
 MIB = 1024 * 1024
 
 
@@ -294,6 +295,45 @@ class ViewerJsTestCase(unittest.TestCase):
                 {"name": "local", "health": {"max_upload_bytes": 50 * MIB,
                                              "accepted_formats": [".stl", ".obj", ".3mf"]}},
             ],
+            "engine": {
+                "resolve": [
+                    {"name": "same_origin", "path": "/api/health", "base": ""},
+                    {"name": "companion_api", "path": "/api/health",
+                     "base": "http://127.0.0.1:8000"},
+                    {"name": "companion_outputs", "path": "/outputs/job/ceramic_body.stl",
+                     "base": "http://127.0.0.1:8000/"},
+                    {"name": "no_leading_slash", "path": "outputs/gold_seams.stl",
+                     "base": "http://127.0.0.1:8001"},
+                    {"name": "absolute", "path": "https://cdn.example/x.stl",
+                     "base": "http://127.0.0.1:8000"},
+                ],
+                "static_presets": [
+                    {"name": "disconnected", "indexFile": str(STATIC_PRESETS), "base": ""},
+                    {"name": "companion", "indexFile": str(STATIC_PRESETS),
+                     "base": "http://127.0.0.1:8001"},
+                ],
+                "probes": [
+                    {"name": "first_port", "ports": list(range(8000, 8010)),
+                     "responses": {"8000": {"status": 200, "body": {
+                         "service": "kintsugi-studio", "api_version": "1.0"}}}},
+                    {"name": "fallback_port", "ports": list(range(8000, 8010)),
+                     "responses": {"8001": {"status": 200, "body": {
+                         "service": "kintsugi-studio", "api_version": "1.0"}}}},
+                    {"name": "wrong_service", "ports": [8000, 8001],
+                     "responses": {
+                         "8000": {"status": 200, "body": {"service": "other"}},
+                         "8001": {"status": 200, "body": {
+                             "service": "kintsugi-studio", "api_version": "1.0"}}}},
+                    {"name": "unreachable",
+                     "responses": {}},
+                ],
+                "versions": [
+                    {"name": "match", "version": "1.0"},
+                    {"name": "minor", "version": "1.7"},
+                    {"name": "major_mismatch", "version": "2.0"},
+                    {"name": "missing", "version": None},
+                ],
+            },
         }
         job_path = cls.dir / "job.json"
         job_path.write_text(json.dumps(job), encoding="utf-8")
@@ -381,6 +421,84 @@ class ViewerJsTestCase(unittest.TestCase):
         self.assertEqual(texts["hosted"], ".stl, .obj or .3mf · watertight only · up to 4.0 MB")
         self.assertEqual(texts["local"], ".stl, .obj or .3mf · watertight only · up to 50.0 MB")
         self.assertEqual(texts["unknown"], ".stl, .obj or .3mf · watertight only")
+
+    # -- companion engine helpers ----------------------------------------------
+    def _engine(self, section: str, name: str) -> dict:
+        return next(
+            item for item in self.results["engine"][section] if item["name"] == name
+        )
+
+    def test_resolve_engine_url_keeps_same_origin_paths_relative(self) -> None:
+        self.assertEqual(
+            self._engine("resolve", "same_origin")["url"], "/api/health"
+        )
+
+    def test_resolve_engine_url_prefixes_companion_api_and_outputs(self) -> None:
+        self.assertEqual(
+            self._engine("resolve", "companion_api")["url"],
+            "http://127.0.0.1:8000/api/health",
+        )
+        self.assertEqual(
+            self._engine("resolve", "companion_outputs")["url"],
+            "http://127.0.0.1:8000/outputs/job/ceramic_body.stl",
+        )
+        self.assertEqual(
+            self._engine("resolve", "no_leading_slash")["url"],
+            "http://127.0.0.1:8001/outputs/gold_seams.stl",
+        )
+
+    def test_resolve_engine_url_does_not_rewrite_absolute_urls(self) -> None:
+        self.assertEqual(
+            self._engine("resolve", "absolute")["url"],
+            "https://cdn.example/x.stl",
+        )
+
+    def test_static_preset_manifest_populates_all_bundled_presets(self) -> None:
+        self.assertTrue(STATIC_PRESETS.exists(), STATIC_PRESETS)
+        static = self._engine("static_presets", "disconnected")
+        self.assertEqual(static["ids"], ["tea_bowl", "benchy", "vase"])
+        for preset in static["presets"]:
+            self.assertTrue(preset["name"])
+            self.assertTrue(preset["description"])
+            self.assertTrue(preset["mesh_url"].startswith("/presets/"))
+            self.assertTrue(preset["mesh_url"].endswith(".stl"))
+
+    def test_static_preset_manifest_qualifies_mesh_urls_for_a_companion(self) -> None:
+        companion = self._engine("static_presets", "companion")
+        for url in companion["meshUrls"]:
+            self.assertTrue(url.startswith("http://127.0.0.1:8001/presets/"), url)
+
+    def test_probe_engine_reuses_a_running_engine_on_the_first_port(self) -> None:
+        probe = self._engine("probes", "first_port")
+        self.assertTrue(probe["ok"], probe)
+        self.assertEqual(probe["port"], 8000)
+        self.assertEqual(probe["baseUrl"], "http://127.0.0.1:8000")
+        self.assertEqual(probe["attempts"], [8000])
+        self.assertEqual(probe["apiVersion"], "1.0")
+        self.assertTrue(probe["compatible"])
+
+    def test_probe_engine_falls_forward_across_the_port_range(self) -> None:
+        probe = self._engine("probes", "fallback_port")
+        self.assertTrue(probe["ok"], probe)
+        self.assertEqual(probe["port"], 8001)
+        self.assertEqual(probe["attempts"], [8000, 8001])
+
+    def test_probe_engine_skips_a_non_kintsugi_service(self) -> None:
+        probe = self._engine("probes", "wrong_service")
+        self.assertTrue(probe["ok"], probe)
+        self.assertEqual(probe["port"], 8001)
+        self.assertEqual(probe["attempts"], [8000, 8001])
+
+    def test_probe_engine_reports_unreachable_ports(self) -> None:
+        probe = self._engine("probes", "unreachable")
+        self.assertFalse(probe["ok"], probe)
+        self.assertIn("8000-8009", probe["error"])
+
+    def test_api_version_requires_a_matching_major(self) -> None:
+        self.assertTrue(self._engine("versions", "match")["compatible"])
+        self.assertTrue(self._engine("versions", "minor")["compatible"])
+        self.assertFalse(self._engine("versions", "major_mismatch")["compatible"])
+        self.assertFalse(self._engine("versions", "missing")["compatible"])
 
 
 if __name__ == "__main__":  # pragma: no cover

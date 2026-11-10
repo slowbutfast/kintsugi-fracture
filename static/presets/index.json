@@ -1,0 +1,23 @@
+[
+  {
+    "id": "tea_bowl",
+    "name": "Japanese Tea Bowl",
+    "description": "90 mm hand-thrown tea bowl with a 3 mm wall.",
+    "filename": "tea_bowl.stl",
+    "mesh_url": "/presets/tea_bowl.stl"
+  },
+  {
+    "id": "benchy",
+    "name": "3D Benchy",
+    "description": "Classic calibration boat (non-vessel; rejected by fracture).",
+    "filename": "benchy.stl",
+    "mesh_url": "/presets/benchy.stl"
+  },
+  {
+    "id": "vase",
+    "name": "Small Vase",
+    "description": "Tapered 70 mm vase with a 2.5 mm wall.",
+    "filename": "vase.stl",
+    "mesh_url": "/presets/vase.stl"
+  }
+]

@@ -89,7 +89,7 @@ A dirty workstation clone produces a warning, and the fingerprint decides.
 
 | Suite | Profile | What runs | Pass when |
 |---|---|---|---|
-| `unit` | quick, full | `unittest` discovery over `tests/` (35 tests) | every test passes |
+| `unit` | quick, full | `unittest` discovery over `tests/` | every test passes |
 | `crack_graph_audit` | full | `tools/crack_graph_audit.py`, tea bowl and vase × S ∈ {0.6, 1.0} × 200 seeds, noise off | phantom = 0, crossing = 0, clamp-line max = 0 in every row |
 | `sweep` | full | `tools/sweep_out_of_sample.py`, both presets × R ∈ {0.15, 0.3, 0.45, 0.65, 0.85} × both modes × seeds 500–507 (160 runs) | nonwatertight = 0 and errors = 0. Retries are reported, not gated. |
 | `noise_fold` | full | `tools/noise_fold_audit.py`, both presets × S ∈ {0.3, 0.6, 1.0}, crossings over seeds 300–499 with noise on | fold area = 0 and crossings = 0. Passed in PATCH-01 (preset fold area 0.0%). |

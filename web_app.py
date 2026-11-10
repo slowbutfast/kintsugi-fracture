@@ -4,13 +4,20 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
+import re
 import shutil
+import socket
 import tempfile
+import threading
 import time
 import traceback
+import urllib.parse
+import urllib.request
 import uuid
+import webbrowser
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -83,6 +90,217 @@ def _upload_limit(env=None) -> int:
 
 
 MAX_UPLOAD_BYTES = _upload_limit()
+
+# ---------------------------------------------------------------------------
+# Local-first security: allow the hosted static GUI to talk to loopback only.
+# ---------------------------------------------------------------------------
+PRODUCTION_ORIGIN = "https://kintsugi-fracture-joeshmo.vercel.app"
+PREVIEW_ORIGIN_RE = re.compile(
+    r"^https://kintsugi-fracture-[a-zA-Z0-9_-]+-joeshmo\.vercel\.app$"
+)
+LOOPBACK_HOSTNAMES = {"127.0.0.1", "localhost", "::1"}
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _extra_origins() -> set[str]:
+    raw = os.getenv("KINTSUGI_ALLOWED_ORIGINS", "")
+    return {
+        item.strip().rstrip("/").lower()
+        for item in raw.split(",")
+        if item.strip()
+    }
+
+
+def _extra_hosts() -> set[str]:
+    allowed: set[str] = set()
+    for name in ("KINTSUGI_ALLOWED_HOSTS", "KINTSUGI_SERVER_HOST"):
+        raw = os.getenv(name, "")
+        allowed.update(item.strip().lower() for item in raw.split(",") if item.strip())
+    return allowed
+
+
+def _origin_allowed(origin: str | None) -> bool:
+    """True for loopback origins, the production origin, and preview URLs."""
+    if not origin:
+        return False
+    candidate = origin.strip().rstrip("/")
+    try:
+        parsed = urllib.parse.urlsplit(candidate)
+    except ValueError:
+        return False
+    if parsed.scheme != "http" and parsed.scheme != "https":
+        return False
+    if parsed.path or parsed.query or parsed.fragment:
+        return False
+    hostname = (parsed.hostname or "").lower()
+    if parsed.scheme == "http" and hostname in LOOPBACK_HOSTNAMES:
+        return True
+    normalized = f"{parsed.scheme}://{parsed.netloc.lower()}"
+    if normalized == PRODUCTION_ORIGIN:
+        return True
+    if PREVIEW_ORIGIN_RE.match(normalized):
+        return True
+    return normalized in _extra_origins()
+
+
+def _hostname_from_host_header(value: str) -> str:
+    raw = value.strip().lower()
+    if raw.startswith("["):
+        end = raw.find("]")
+        return raw[1:end] if end > 1 else ""
+    if raw.count(":") == 1:
+        host, _, port = raw.partition(":")
+        if port and not port.isdigit():
+            return ""
+        return host
+    return raw
+
+
+def _host_allowed(host_header: str | None) -> bool:
+    """DNS-rebinding defense: only loopback Host values (or --host) pass."""
+    if not host_header:
+        return False
+    hostname = _hostname_from_host_header(host_header)
+    return hostname in LOOPBACK_HOSTNAMES or hostname in _extra_hosts()
+
+
+def _cors_headers(
+    origin: str,
+    *,
+    preflight: bool = False,
+    requested_headers: str | None = None,
+    private_network: bool = False,
+) -> list[tuple[bytes, bytes]]:
+    headers = [
+        (b"access-control-allow-origin", origin.encode("latin-1")),
+        (b"vary", b"Origin"),
+        (b"access-control-allow-methods", b"GET, POST, OPTIONS"),
+    ]
+    if preflight:
+        headers.append(
+            (
+                b"access-control-allow-headers",
+                (
+                    requested_headers
+                    or "Content-Type, Accept, X-Requested-With"
+                ).encode("latin-1"),
+            )
+        )
+        headers.append((b"access-control-max-age", b"600"))
+        if private_network:
+            headers.append((b"access-control-allow-private-network", b"true"))
+    # Credentials are intentionally never enabled: no cookies, no auth headers.
+    return headers
+
+
+async def _send_security_error(send, status: int, detail: str) -> None:
+    body = json.dumps(
+        {"detail": detail, "error_type": "SecurityError", "status": status}
+    ).encode("utf-8")
+    headers = [
+        (b"content-type", b"application/json; charset=utf-8"),
+        (b"content-length", str(len(body)).encode("ascii")),
+        (b"vary", b"Origin"),
+    ]
+    await send({"type": "http.response.start", "status": status, "headers": headers})
+    await send({"type": "http.response.body", "body": body})
+
+
+class SecurityCORSMiddleware:
+    """Pure ASGI origin, Host, CORS and Local Network Access enforcement.
+
+    The middleware never wraps or buffers the request body and never uses
+    ``BaseHTTPMiddleware``.  Unauthorized state-changing requests and
+    ``/outputs/*`` reads are answered with 403 before the inner app (or even
+    ``receive``) is called.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = {
+            key.decode("latin-1").lower(): value.decode("latin-1")
+            for key, value in scope.get("headers", [])
+        }
+        method = scope.get("method", "GET").upper()
+        path = scope.get("path", "")
+        origin = headers.get("origin")
+
+        if not _host_allowed(headers.get("host")):
+            logger.warning(
+                "rejected request with untrusted Host header %r on %s %s",
+                headers.get("host"),
+                method,
+                path,
+            )
+            await _send_security_error(send, 403, "Untrusted Host header")
+            return
+
+        allowed_origin = bool(origin) and _origin_allowed(origin)
+
+        if method == "OPTIONS" and origin:
+            if not allowed_origin:
+                logger.warning(
+                    "rejected cross-origin preflight from %r on %s", origin, path
+                )
+                await _send_security_error(send, 403, "Origin not allowed")
+                return
+            private_network = (
+                headers.get("access-control-request-private-network", "").lower()
+                == "true"
+            )
+            response_headers = _cors_headers(
+                origin,
+                preflight=True,
+                requested_headers=headers.get("access-control-request-headers"),
+                private_network=private_network,
+            )
+            response_headers.append((b"content-length", b"0"))
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 204,
+                    "headers": response_headers,
+                }
+            )
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        # Simple CORS requests (multipart POSTs bypass preflight) and all
+        # download reads are checked server-side before touching the body.
+        if origin and not allowed_origin:
+            if method in UNSAFE_METHODS or path.startswith("/outputs/"):
+                logger.warning(
+                    "rejected cross-origin %s from %r on %s", method, origin, path
+                )
+                await _send_security_error(send, 403, "Origin not allowed")
+                return
+
+        if not (origin and allowed_origin):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_cors(message) -> None:
+            if message["type"] == "http.response.start":
+                kept = [
+                    (key, value)
+                    for key, value in message.get("headers", [])
+                    if key.lower()
+                    not in (
+                        b"access-control-allow-origin",
+                        b"access-control-allow-credentials",
+                    )
+                ]
+                kept.extend(_cors_headers(origin))
+                message = {**message, "headers": kept}
+            await send(message)
+
+        await self.app(scope, receive, send_with_cors)
 
 
 def _describe_bytes(count: int) -> str:
@@ -189,6 +407,10 @@ class RequestContextMiddleware:
 
 
 app.add_middleware(RequestContextMiddleware)
+# Outermost user middleware: reject untrusted Host/Origin before diagnostics or
+# any body parsing.  Starlette inserts at position 0, so the last addition wraps
+# RequestContextMiddleware.
+app.add_middleware(SecurityCORSMiddleware)
 
 
 def jsonable_errors(exc: RequestValidationError) -> list:
@@ -247,6 +469,24 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
     )
 
 app.mount("/outputs", StaticFiles(directory=str(OUTPUT_DIR)), name="outputs")
+
+
+@app.get("/presets/index.json", include_in_schema=False)
+def static_presets_manifest() -> JSONResponse:
+    """Serve the static preset manifest in front of the preset STL mount.
+
+    The hosted CDN uses the same file; exposing it locally keeps the viewer's
+    disconnected fallback working when the API is unavailable.
+    """
+    manifest = STATIC_DIR / "presets" / "index.json"
+    try:
+        return JSONResponse(json.loads(manifest.read_text(encoding="utf-8")))
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="Static preset manifest not found"
+        ) from exc
+
+
 app.mount("/presets", StaticFiles(directory=str(PRESET_DIR)), name="presets")
 
 
@@ -259,6 +499,8 @@ def api_presets() -> JSONResponse:
 def api_health() -> dict:
     return {
         "status": "ok",
+        "service": "kintsugi-studio",
+        "api_version": "1.0",
         "kernel": "Manifold3D",
         "max_upload_bytes": MAX_UPLOAD_BYTES,
         "accepted_formats": list(ACCEPTED_SUFFIXES),
@@ -530,6 +772,133 @@ def main(argv: list[str] | None = None) -> int:
     import uvicorn
 
     uvicorn.run(app, host=args.host, port=args.port)
+    return 0
+
+
+def _is_loopback_host(host: str) -> bool:
+    return host.strip().lower().strip("[]") in LOOPBACK_HOSTNAMES
+
+
+def _connect_host(host: str) -> str:
+    """Use 127.0.0.1 for probing unless an IPv6 loopback was requested."""
+    return "::1" if host.strip().lower().strip("[]") == "::1" else "127.0.0.1"
+
+
+def _http_url(host: str, port: int) -> str:
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"http://{host}:{port}"
+
+
+def _probe_health(port: int, host: str = "127.0.0.1", timeout: float = 0.5):
+    """Return /api/health JSON when a Kintsugi Studio instance owns the port."""
+    url = f"{_http_url(host, port)}/api/health"
+    # Loopback probes must never be routed through an HTTP proxy.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(url, timeout=timeout) as response:
+            if response.status != 200:
+                return None
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:  # noqa: BLE001 - any failure simply means "not ours"
+        return None
+    if isinstance(payload, dict) and payload.get("service") == "kintsugi-studio":
+        return payload
+    return None
+
+
+def _port_available(host: str, port: int) -> bool:
+    """Bind-probe a port so an unrelated listener is never mistaken for us."""
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+    return True
+
+
+def _open_when_ready(url: str, timeout: float = 15.0) -> None:
+    parsed = urllib.parse.urlsplit(url)
+    port = parsed.port or 8000
+    host = parsed.hostname or "127.0.0.1"
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _probe_health(port, host=host, timeout=0.5):
+            webbrowser.open(url)
+            return
+        time.sleep(0.1)
+    logger.warning("server at %s did not become ready; open it manually", url)
+
+
+def studio(argv: list[str] | None = None) -> int:
+    """One-command local launcher: reuse, probe 8000-8009, then serve loopback."""
+    parser = argparse.ArgumentParser(
+        prog="kintsugi-studio",
+        description="Launch Kintsugi Studio 2001 on loopback and open the browser",
+    )
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--no-open", action="store_true", help="do not open a browser")
+    parser.add_argument(
+        "--log-level", default=os.getenv("KINTSUGI_LOG_LEVEL", "info").lower()
+    )
+    args = parser.parse_args(argv)
+
+    loopback = _is_loopback_host(args.host)
+    if not loopback:
+        logger.warning(
+            "SECURITY WARNING: --host %s exposes unauthenticated Kintsugi "
+            "Studio endpoints to the local network. Use 127.0.0.1 unless you "
+            "intend to share this instance.",
+            args.host,
+        )
+    os.environ["KINTSUGI_SERVER_HOST"] = args.host
+
+    probe_host = _connect_host(args.host)
+    start_port = max(1, int(args.port))
+    candidates = list(range(start_port, min(start_port + 9, 65535) + 1))
+
+    chosen = None
+    for port in candidates:
+        health = _probe_health(port, host=probe_host, timeout=0.5)
+        if health:
+            url = _http_url(probe_host, port)
+            logger.info(
+                "Kintsugi Studio is already running at %s (api_version=%s); reusing it",
+                url,
+                health.get("api_version", "unknown"),
+            )
+            if not args.no_open:
+                webbrowser.open(url)
+            return 0
+        if _port_available(args.host, port):
+            chosen = port
+            break
+
+    if chosen is None:
+        logger.error(
+            "no free port in %s-%s; stop the process occupying the range",
+            candidates[0],
+            candidates[-1],
+        )
+        return 1
+
+    url = _http_url(probe_host, chosen)
+    logger.info("Kintsugi Studio 2001 listening at %s", url)
+    if not args.no_open:
+        threading.Thread(
+            target=_open_when_ready, args=(url,), daemon=True
+        ).start()
+
+    import uvicorn
+
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=chosen,
+        log_level=args.log_level,
+    )
     return 0
 
 

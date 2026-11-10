@@ -1,9 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "app.py": {
-      "maxDuration": 300,
-      "excludeFiles": "{tests/**,tools/**,openspec/**,output/**,reports/**,generate_sample.py,empty.stl}"
-    }
-  }
+  "framework": null,
+  "outputDirectory": ".",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/", "destination": "/static/index.html" },
+    { "source": "/index.html", "destination": "/static/index.html" },
+    { "source": "/xp.css", "destination": "/static/xp.css" },
+    { "source": "/viewer.js", "destination": "/static/viewer.js" },
+    { "source": "/engine.js", "destination": "/static/engine.js" },
+    { "source": "/threemf.js", "destination": "/static/threemf.js" },
+    { "source": "/upload.js", "destination": "/static/upload.js" },
+    { "source": "/presets/index.json", "destination": "/static/presets/index.json" }
+  ]
 }

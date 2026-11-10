@@ -12,6 +12,13 @@ import {
   listFormats,
   uploadSubtitle,
 } from "./upload.js";
+import {
+  enginePortsFor,
+  isSameOriginLocalLocation,
+  presetsFromStaticIndex,
+  probeEngine,
+  resolveEngineUrl as resolveEngineUrlWithBase,
+} from "./engine.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -24,7 +31,20 @@ const state = {
   modelGroup: new THREE.Group(),
   meshGroup: new THREE.Group(),
   downloads: { ceramic_stl: null, gold_stl: null, three_mf: null },
+  engineBaseUrl: "",
+  enginePort: null,
+  engineVersion: null,
+  engineConnected: false,
+  engineChecking: false,
+  engineSameOrigin: false,
+  presetSource: "api",
 };
+
+// Qualify API and asset paths against the active local companion engine.  When
+// the GUI is served by the engine itself this returns the original path.
+function resolveEngineUrl(path) {
+  return resolveEngineUrlWithBase(path, state.engineBaseUrl);
+}
 
 const ui = {
   preset: $("preset-select"),
@@ -79,6 +99,11 @@ const ui = {
   viewportHint: document.querySelector(".viewport-hint"),
   viewport: $("viewport"),
   studioWindow: $("studio-window"),
+  engineStatus: $("engine-status"),
+  engineDot: $("engine-dot"),
+  connectEngine: $("connect-engine"),
+  enginePortInput: $("engine-port-input"),
+  engineLink: $("engine-link"),
 };
 
 let renderer;
@@ -388,6 +413,7 @@ class ApiError extends Error {
 }
 
 async function requestJson(label, url, options = {}) {
+  url = resolveEngineUrl(url);
   const method = (options.method || "GET").toUpperCase();
   const started = performance.now();
   const request = { label, method, url, form: describeFormData(options.body) };
@@ -501,16 +527,17 @@ async function loadParts(parts) {
   const geometries = [];
   for (const part of parts) {
     if (!part.url) continue;
+    const url = resolveEngineUrl(part.url);
     let geometry;
     try {
-      geometry = await loader.loadAsync(part.url);
+      geometry = await loader.loadAsync(url);
     } catch (error) {
       console.error(`[kintsugi] ✗ could not load mesh "${part.name}"`, {
-        url: part.url,
+        url,
         error,
       });
       throw new Error(
-        `Could not load mesh "${part.name}" from ${part.url}: ${error.message || error}`
+        `Could not load mesh "${part.name}" from ${url}: ${error.message || error}`
       );
     }
     geometries.push({ geometry, material: part.material, name: part.name });
@@ -544,6 +571,61 @@ function updateMeshStatus(extra = "", tone = "") {
 function setStatus(text) {
   ui.statusOperation.textContent = text;
   ui.statusOperation.title = text;
+}
+
+function localAppUrl(port = state.enginePort || 8000) {
+  return `http://127.0.0.1:${port}`;
+}
+
+/**
+ * Render the Windows XP connection indicator.  Status values map to the
+ * documented colours: connected/same-origin green, connecting/disconnected
+ * amber, error red.  The direct "Open Local App" link is the universal Safari
+ * mixed-content fallback.
+ */
+function setEngineStatus(status, detail = {}) {
+  const { port, version, message } = detail;
+  state.engineConnected = status === "connected" || status === "same-origin";
+  state.engineChecking = status === "connecting";
+  const activePort = port || state.enginePort || 8000;
+
+  if (ui.engineDot) {
+    ui.engineDot.className = `engine-dot engine-${status}`;
+  }
+  if (ui.connectEngine) {
+    ui.connectEngine.disabled = state.engineChecking;
+  }
+
+  let text = message;
+  if (!text) {
+    if (status === "same-origin") {
+      text = "Local Engine: Connected (Same-Origin)";
+    } else if (status === "connecting") {
+      text = `Connecting to 127.0.0.1:${activePort}…`;
+    } else if (status === "connected") {
+      text = `Local Engine: Connected (127.0.0.1:${activePort}, v${
+        version || state.engineVersion || "1.0"
+      })`;
+    } else if (status === "error") {
+      text = "Local Engine: Unreachable — launch kintsugi-studio";
+    } else {
+      text = "Local Engine: Disconnected";
+    }
+  }
+  if (ui.engineStatus) {
+    ui.engineStatus.textContent = text;
+    ui.engineStatus.title = text;
+  }
+
+  if (ui.engineLink) {
+    const show = status !== "disconnected";
+    ui.engineLink.hidden = !show;
+    ui.engineLink.href = localAppUrl(activePort);
+    ui.engineLink.textContent =
+      status === "connected" || status === "same-origin"
+        ? "Open Local Studio ↗"
+        : `Open Local App (127.0.0.1:${activePort}) ↗`;
+  }
 }
 
 function setBusy(busy) {
@@ -686,29 +768,64 @@ async function loadPreset(presetId) {
   }
 }
 
+async function loadStaticPresets() {
+  const response = await fetch("/presets/index.json", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`static preset manifest returned HTTP ${response.status}`);
+  }
+  return presetsFromStaticIndex(await response.json(), "");
+}
+
 async function loadPresets() {
-  try {
-    const body = await requestJson("Load presets", "/api/presets");
-    state.presets = (body && body.presets) || [];
-    ui.preset.innerHTML = "";
-    for (const preset of state.presets) {
-      const option = document.createElement("option");
-      option.value = preset.id;
-      option.textContent = preset.name;
-      ui.preset.appendChild(option);
+  let presets = [];
+  let source = "api";
+
+  if (state.engineSameOrigin || state.engineConnected) {
+    try {
+      const body = await requestJson("Load presets", "/api/presets");
+      presets = (body && body.presets) || [];
+    } catch (error) {
+      console.warn(
+        "[kintsugi] engine preset API unavailable; trying the static manifest",
+        error
+      );
     }
-    populatePresetMenu();
-    ui.preset.value = "tea_bowl";
-    syncMenuChecks();
-    await loadPreset("tea_bowl");
-  } catch (error) {
+  }
+
+  if (!presets.length) {
+    try {
+      presets = await loadStaticPresets();
+      source = "static";
+    } catch (error) {
+      console.warn("[kintsugi] static preset manifest unavailable", error);
+    }
+  }
+
+  state.presetSource = source;
+  if (!presets.length) {
     ui.preset.innerHTML = '<option value="">Presets unavailable</option>';
     if (ui.menuPresets) {
       ui.menuPresets.innerHTML =
         '<div class="menu-section-label">Presets Unavailable</div>';
     }
-    setStatus(`Preset API error: ${error.message}`);
+    setStatus("Presets unavailable: connect a local engine or serve presets/index.json");
+    return;
   }
+
+  state.presets = presets;
+  ui.preset.innerHTML = "";
+  for (const preset of state.presets) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = preset.name;
+    ui.preset.appendChild(option);
+  }
+  populatePresetMenu();
+  syncMenuChecks();
+  const preferred =
+    state.presets.find((preset) => preset.id === "tea_bowl") || state.presets[0];
+  ui.preset.value = preferred.id;
+  await loadPreset(preferred.id);
 }
 
 // A 3MF preview failure is not fatal: the server's validation decides.
@@ -732,13 +849,92 @@ async function previewThreeMf(file) {
 }
 
 async function loadLimits() {
+  if (!state.engineSameOrigin && !state.engineConnected) {
+    // Static host without a companion: use conservative defaults and let the
+    // user explicitly connect before any API call is attempted.
+    applyUploadLimits();
+    return;
+  }
   try {
     const body = await requestJson("Load limits", "/api/health");
     state.limits = limitsFromHealth(body);
+    if (body && body.api_version) state.engineVersion = body.api_version;
   } catch (error) {
     console.warn("[kintsugi] could not read /api/health; using default upload limits", error);
   }
   applyUploadLimits();
+}
+
+async function initializeEngine() {
+  if (isSameOriginLocalLocation(window.location)) {
+    state.engineSameOrigin = true;
+    state.engineBaseUrl = "";
+    state.enginePort = Number(window.location.port) || 8000;
+    try {
+      const health = await requestJson("Engine health", "/api/health");
+      if (!health || health.service !== "kintsugi-studio") {
+        throw new Error("unexpected /api/health response");
+      }
+      state.engineVersion = health.api_version || "1.0";
+      state.limits = limitsFromHealth(health);
+      applyUploadLimits();
+      setEngineStatus("same-origin", { port: state.enginePort });
+      return true;
+    } catch (error) {
+      console.warn("[kintsugi] same-origin health probe failed", error);
+      setEngineStatus("error", { message: "Local Engine: Unavailable" });
+      return false;
+    }
+  }
+  // Hosted static GUI: never auto-poll loopback.  Chrome LNA requires an
+  // explicit user gesture before a private-network permission prompt.
+  setEngineStatus("disconnected");
+  return false;
+}
+
+async function connectEngine() {
+  if (state.engineChecking) return;
+  const manual = ui.enginePortInput ? ui.enginePortInput.value.trim() : "";
+  const ports = enginePortsFor(manual);
+  const first = ports[0] || 8000;
+  setEngineStatus("connecting", { port: first });
+  const range =
+    ports.length > 1 ? `${ports[0]}–${ports[ports.length - 1]}` : `${first}`;
+  setStatus(`Connecting to local engine on port${ports.length > 1 ? "s" : ""} ${range}…`);
+
+  try {
+    const probe = await probeEngine({ ports, timeoutMs: 1200 });
+    state.engineBaseUrl = probe.baseUrl;
+    state.enginePort = probe.port;
+    state.engineVersion = probe.apiVersion;
+    state.engineConnected = true;
+    if (probe.health) {
+      state.limits = limitsFromHealth(probe.health);
+      applyUploadLimits();
+    }
+    setEngineStatus("connected", {
+      port: probe.port,
+      version: probe.apiVersion || "unknown",
+    });
+    if (!probe.compatible) {
+      setStatus(
+        `Connected, but engine v${probe.apiVersion || "?"} is incompatible with GUI v1.0. Update your local clone.`
+      );
+    } else {
+      setStatus(`Connected to local engine at ${probe.baseUrl}`);
+    }
+    await loadPresets();
+  } catch (error) {
+    console.warn("[kintsugi] companion engine connection failed", error);
+    state.engineBaseUrl = "";
+    state.enginePort = null;
+    state.engineVersion = null;
+    state.engineConnected = false;
+    setEngineStatus("error");
+    setStatus(
+      `Engine unreachable (${error.message}). Launch kintsugi-studio, then click Open Local App.`
+    );
+  }
 }
 
 function applyUploadLimits() {
@@ -818,6 +1014,13 @@ async function handleCustomFile(file) {
 }
 
 async function validateCustomFile(file) {
+  if (!state.engineSameOrigin && !state.engineConnected) {
+    state.uploadValid = false;
+    ui.fracture.disabled = true;
+    updateMeshStatus("Local preview only — connect a local engine", "error");
+    setStatus("Click Connect Engine to validate and fracture custom models.");
+    return;
+  }
   const form = new FormData();
   form.append("file", file);
   setStatus(`Validating watertightness of ${file.name}…`);
@@ -856,6 +1059,10 @@ async function validateCustomFile(file) {
 }
 
 async function fracture() {
+  if (!state.engineSameOrigin && !state.engineConnected) {
+    setStatus("Click Connect Engine before fracturing a mesh.");
+    return;
+  }
   const hasCustom = Boolean(state.customFile);
   const preset = ui.preset.value;
   if (!hasCustom && !preset) {
@@ -905,17 +1112,28 @@ async function fracture() {
       body: form,
     });
 
-    state.downloads = body.downloads;
-    setDownload(ui.downloadCeramic, body.downloads.ceramic_stl, "ceramic_body.stl");
-    setDownload(ui.downloadGold, body.downloads.gold_stl, "gold_seams.stl");
-    setDownload(ui.download3mf, body.downloads.three_mf, "kintsugi_assembly.3mf");
-    setDownload(ui.menuDownloadCeramic, body.downloads.ceramic_stl, "ceramic_body.stl");
-    setDownload(ui.menuDownloadGold, body.downloads.gold_stl, "gold_seams.stl");
-    setDownload(ui.menuDownload3mf, body.downloads.three_mf, "kintsugi_assembly.3mf");
+    const downloads = {
+      ceramic_stl: body.downloads.ceramic_stl
+        ? resolveEngineUrl(body.downloads.ceramic_stl)
+        : null,
+      gold_stl: body.downloads.gold_stl
+        ? resolveEngineUrl(body.downloads.gold_stl)
+        : null,
+      three_mf: body.downloads.three_mf
+        ? resolveEngineUrl(body.downloads.three_mf)
+        : null,
+    };
+    state.downloads = downloads;
+    setDownload(ui.downloadCeramic, downloads.ceramic_stl, "ceramic_body.stl");
+    setDownload(ui.downloadGold, downloads.gold_stl, "gold_seams.stl");
+    setDownload(ui.download3mf, downloads.three_mf, "kintsugi_assembly.3mf");
+    setDownload(ui.menuDownloadCeramic, downloads.ceramic_stl, "ceramic_body.stl");
+    setDownload(ui.menuDownloadGold, downloads.gold_stl, "gold_seams.stl");
+    setDownload(ui.menuDownload3mf, downloads.three_mf, "kintsugi_assembly.3mf");
 
     await loadParts([
-      { url: body.downloads.ceramic_stl, material: ceramicMaterial, name: "CeramicBody" },
-      { url: body.downloads.gold_stl, material: goldMaterial, name: "GoldSeams" },
+      { url: downloads.ceramic_stl, material: ceramicMaterial, name: "CeramicBody" },
+      { url: downloads.gold_stl, material: goldMaterial, name: "GoldSeams" },
     ]);
 
     const volumes = body.volumes;
@@ -988,6 +1206,18 @@ function wireEvents() {
     ui.generator.addEventListener("change", syncGeneratorMode);
   }
   ui.fracture.addEventListener("click", fracture);
+
+  if (ui.connectEngine) {
+    ui.connectEngine.addEventListener("click", connectEngine);
+  }
+  if (ui.enginePortInput) {
+    ui.enginePortInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        connectEngine();
+      }
+    });
+  }
 
   for (const trigger of ui.menuTriggers) {
     trigger.addEventListener("click", (event) => {
@@ -1124,6 +1354,7 @@ async function start() {
   setDownload(ui.menuDownloadGold, null);
   setDownload(ui.menuDownload3mf, null);
   switchMobileTab("fracture");
+  await initializeEngine();
   await loadLimits();
   await loadPresets();
 }

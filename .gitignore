@@ -3,6 +3,7 @@
 .venv
 __pycache__/
 *.pyc
+*.egg-info/
 
 # Runtime and scratch outputs (MD5s of determinism runs are recorded in verification.md)
 output/web/

@@ -43,7 +43,7 @@ class WebApiTestCase(unittest.TestCase):
         cls.open_bowl_bytes = cls.open_bowl.read_bytes()
         cls.thin_bytes = cls.thin.read_bytes()
         cls.solid_bytes = cls.solid.read_bytes()
-        cls.client = TestClient(app)
+        cls.client = TestClient(app, base_url="http://127.0.0.1:8000")
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -486,9 +486,9 @@ class WebDiagnosticsTestCase(unittest.TestCase):
         cls.bowl = Path(cls._tmp.name) / "bowl.stl"
         fixtures.write_bowl(cls.bowl)
         cls.bowl_bytes = cls.bowl.read_bytes()
-        cls.client = TestClient(app)
+        cls.client = TestClient(app, base_url="http://127.0.0.1:8000")
         # Unhandled exceptions must come back as JSON responses, not be re-raised.
-        cls.quiet_client = TestClient(app, raise_server_exceptions=False)
+        cls.quiet_client = TestClient(app, base_url="http://127.0.0.1:8000", raise_server_exceptions=False)
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -631,7 +631,7 @@ class WebUploadLimitAndFormatsTestCase(unittest.TestCase):
             build_items=[{"objectid": 1}, {"objectid": 2}],
         )
         cls.two_items_bytes = cls.two_items.read_bytes()
-        cls.client = TestClient(app)
+        cls.client = TestClient(app, base_url="http://127.0.0.1:8000")
 
     @classmethod
     def tearDownClass(cls) -> None:

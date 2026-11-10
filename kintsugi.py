@@ -4694,6 +4694,9 @@ def generate_kintsugi_mesh(
             three_mf_path.parent.mkdir(parents=True, exist_ok=True)
             export_kintsugi_3mf(manifold, None, three_mf_path)
         timings["export"] = time.perf_counter() - export_started
+        # Wealthy pass-through performs no F1 round-trip audit, so the guard
+        # duration is a measured zero rather than a missing key.
+        timings["guard"] = 0.0
         timings["total"] = time.perf_counter() - started
         return {
             "ceramic_path": str(ceramic_path),
@@ -4745,6 +4748,7 @@ def generate_kintsugi_mesh(
     cutter_elapsed = 0.0
     csg_elapsed = 0.0
     swap_elapsed = 0.0
+    guard_elapsed = 0.0
     cutter_attempts = 0
     cutter_variants_used = 0
     guard_evaluations = 0
@@ -4802,12 +4806,14 @@ def generate_kintsugi_mesh(
             swap_elapsed += time.perf_counter() - swap_started
 
             guard_evaluations += 1
+            guard_started = time.perf_counter()
             ceramic_export_mesh = _export_trimesh(ceramic)
             gold_export_mesh = _export_trimesh(gold)
             last_bad = (
                 _stl_bad_edge_count(ceramic_export_mesh),
                 _stl_bad_edge_count(gold_export_mesh),
             )
+            guard_elapsed += time.perf_counter() - guard_started
             if last_bad == (0, 0):
                 cutter_variants_used = variant_index
                 attempt_clean = True
@@ -4825,6 +4831,7 @@ def generate_kintsugi_mesh(
     timings["cutter"] = cutter_elapsed
     timings["csg"] = csg_elapsed
     timings["debris_swap"] = swap_elapsed
+    timings["guard"] = guard_elapsed
     params["cutter_attempts"] = cutter_attempts
     params["cutter_variants"] = cutter_variants_used
     params["guard_evaluations"] = guard_evaluations

@@ -13,3 +13,7 @@ logs
 .opencode
 .env
 .env.*
+# Static CDN only: never upload or execute Python sources on Vercel.
+*.py
+requirements*.txt
+pyproject.toml

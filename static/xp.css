@@ -875,6 +875,94 @@ select {
   color: var(--close-hover);
 }
 
+/* Companion engine indicator (Windows XP notification-area styling). */
+.engine-cell {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 5px;
+  max-width: 48%;
+  min-width: 0;
+}
+
+.engine-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.engine-same-origin,
+.engine-connected {
+  background: #2e7d32;
+}
+
+.engine-disconnected,
+.engine-connecting {
+  background: #ed6c02;
+}
+
+.engine-error {
+  background: #d32f2f;
+}
+
+.engine-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.engine-port-input {
+  width: 54px;
+  min-height: 17px;
+  padding: 1px 2px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.engine-button {
+  min-height: 19px;
+  padding: 1px 7px;
+  color: var(--on-surface);
+  font-size: 10px;
+  font-weight: 700;
+  background: linear-gradient(#ffffff, var(--surface));
+  border: 1px solid;
+  border-color: var(--border-highlight) var(--border-dark) var(--border-dark) var(--border-highlight);
+  border-radius: var(--radius-button);
+  cursor: pointer;
+}
+
+.engine-button:hover:not(:disabled) {
+  background: linear-gradient(#ffffff, #e3f0ff);
+}
+
+.engine-button:active:not(:disabled) {
+  border-color: var(--border-dark) var(--border-highlight) var(--border-highlight) var(--border-dark);
+}
+
+.engine-button:disabled {
+  color: var(--on-surface-disabled);
+  cursor: wait;
+}
+
+.engine-link {
+  flex: 0 0 auto;
+  color: #0645ad;
+  font-size: 10px;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.engine-link[hidden] {
+  display: none;
+}
+
 /* Scrollbar, lightly XP flavoured */
 .sidebar::-webkit-scrollbar {
   width: 14px;
@@ -996,5 +1084,25 @@ select {
 
   .viewport-hint {
     font-size: 10px;
+  }
+}
+
+/* Companion controls stay reachable but compact on narrow viewports. */
+@media (max-width: 900px) {
+  .engine-cell {
+    max-width: 62%;
+  }
+
+  .engine-port-input {
+    display: none;
+  }
+
+  .engine-button {
+    min-height: 28px;
+    font-size: 10px;
+  }
+
+  .engine-link {
+    display: none;
   }
 }
