@@ -1,3 +1,19 @@
+# [REJECTED & ARCHIVED WITHOUT INTEGRATION]
+
+## Archive & Rejection Post-Mortem (2026-11-11)
+- **Outcome**: PR #12 closed unmerged; OpenSpec change archived with `--skip-specs`. Main specifications are unmodified.
+- **Reason for Rejection**: The offline companion architecture (`kintsugi-studio` local server + browser loopback connection) successfully passed all 188 automated tests, solved Chrome LNA `targetAddressSpace: "loopback"` constraints, and assembled a static Vercel CDN build. However, requiring users to manually run a local terminal server to power a web GUI introduced significant user friction that does not fit the intended product vision.
+- **Preserved Engineering Insights**:
+  1. **Track B Browser WASM Feasibility**: Measured ~11,000 runtime ray-cast calls per fracture across 6 call sites (~0.2s native, but substantial FFI overhead in Pyodide); documented `Mesh64` float64 vs `Float32Array` precision risks, and mandatory manual WASM `.delete()`.
+  2. **Chrome Local Network Access (LNA)**: Discovered and solved the requirement for `targetAddressSpace: "loopback"` on fetch calls from HTTPS to loopback to prevent immediate mixed-content rejection before permission prompts.
+  3. **Vercel Static Routing**: Documented cleanUrls conflicts with `.html` rewrite targets, and established the dedicated `public/` build pattern to prevent repository doc leakage.
+  4. **Pure ASGI Security**: Successfully created `SecurityCORSMiddleware` without `BaseHTTPMiddleware`, implementing DNS rebinding defenses (`Host` header checks) and server-side origin rejection on simple POSTs.
+- **Future Direction**: Future iterations will evaluate:
+  - **Option 1**: True cloud hosting of the Python backend (e.g. Railway, Fly.io, or VPS) with no Vercel payload limits, offering a seamless zero-install web experience.
+  - **Option 2**: Complete in-browser client-side WebAssembly port (Track B) if a serverless zero-install architecture is prioritized.
+
+---
+
 ## Why
 
 Every upload and download problem encountered since 2026-11-08 stems from **hosted** serverless execution, not the procedural fracture engine:
